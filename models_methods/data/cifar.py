@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 
 
 class Cifar:
-    def __init__(self, batch_size, threads):
+    def __init__(self, batch_size, threads=2):
         mean, std = self._get_statistics()
 
         train_transform = transforms.Compose([

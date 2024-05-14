@@ -6,7 +6,7 @@ class Log:
     def __init__(self, log_each: int, initial_epoch=-1):
         self.loading_bar = LoadingBar(length=27)
         self.best_accuracy = 0.0
-        self.log_each = log_each
+        self.log_each = log_each # log each n steps
         self.epoch = initial_epoch
 
     def train(self, len_dataset: int) -> None:
@@ -15,7 +15,7 @@ class Log:
             self._print_header()
         else:
             self.flush()
-
+        
         self.is_train = True
         self.last_steps_state = {"loss": 0.0, "accuracy": 0.0, "steps": 0}
         self._reset(len_dataset)
@@ -32,6 +32,9 @@ class Log:
             self._eval_step(loss, accuracy)
 
     def flush(self) -> None:
+        """
+        compute and print the average loss and accuracy for n steps 
+        """
         if self.is_train:
             loss = self.epoch_state["loss"] / self.epoch_state["steps"]
             accuracy = self.epoch_state["accuracy"] / self.epoch_state["steps"]
@@ -39,7 +42,7 @@ class Log:
             print(
                 f"\r┃{self.epoch:12d}  ┃{loss:12.4f}  │{100*accuracy:10.2f} %  ┃{self.learning_rate:12.3e}  │{self._time():>12}  ┃",
                 end="",
-                flush=True,
+                flush=True, # flush=True to print the line immediately
             )
 
         else:
