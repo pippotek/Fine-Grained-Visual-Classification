@@ -1,3 +1,4 @@
+# probably useless (from SAM repository)
 class StepLR:
     def __init__(self, optimizer, learning_rate: float, total_epochs: int):
         self.optimizer = optimizer
