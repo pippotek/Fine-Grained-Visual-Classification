@@ -1,4 +1,6 @@
 import torch
+import requests
+from io import BytesIO
 from typing import Union
 import torchvision.models
 from torchvision.models.feature_extraction import get_graph_node_names
@@ -26,10 +28,18 @@ Please check 'timm/models/swin_transformer.py' line 541 to see how to change mod
 model also fail at create_feature_extractor or get_graph_node_names step.
 """
 
-def load_model_weights(model, model_path):
-    ### reference https://github.com/TACJu/TransFG
-    ### thanks a lot.
-    state = torch.load(model_path, map_location='cpu')
+import torch
+import requests
+from io import BytesIO
+
+def load_model_weights(model, model_path_or_url):
+    if model_path_or_url.startswith('http://') or model_path_or_url.startswith('https://'):
+        response = requests.get(model_path_or_url)
+        response.raise_for_status()  # Ensure we raise an exception for HTTP errors
+        state = torch.load(BytesIO(response.content), map_location='cpu')
+    else:
+        state = torch.load(model_path_or_url, map_location='cpu')
+
     for key in model.state_dict():
         if 'num_batches_tracked' in key:
             continue
@@ -42,10 +52,12 @@ def load_model_weights(model, model_path):
                 print('could not load layer: {}, mismatch shape {} ,{}'.format(key, (p.shape), (ip.shape)))
         else:
             print('could not load layer: {}, not in checkpoint'.format(key))
+    
     return model
 
 
-def build_resnet50(pretrained: str = "PIM/models/resnet50_miil_21k.pth",
+
+def build_resnet50(pretrained: str = "https://miil-public-eu.oss-eu-central-1.aliyuncs.com/model-zoo/ImageNet_21K_P/models/resnet50_miil_21k.pth",
                    return_nodes: Union[dict, None] = None,
                    num_selects: Union[dict, None] = None, 
                    img_size: int = 448,
@@ -150,7 +162,7 @@ def build_efficientnet(pretrained: bool = True,
 
 
 
-def build_vit16(pretrained: str = "PIM/models/vit_base_patch16_224_miil_21k.pth",
+def build_vit16(pretrained: str = "https://miil-public-eu.oss-eu-central-1.aliyuncs.com/model-zoo/ImageNet_21K_P/models/vit_base_patch16_224_miil_21k.pth",
                 return_nodes: Union[dict, None] = None,
                 num_selects: Union[dict, None] = None, 
                 img_size: int = 448,
