@@ -1,6 +1,7 @@
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+import pickle 
 
 import os
 os.chdir("/home/peppe/01_Study/01_University/Semester/2/Intro_to_ML/Project/Code") # to import modules from other directories
@@ -8,51 +9,108 @@ print("Warning: the working directory was changed to", os.getcwd())
 
 class Trainer:
 
-    def __init__(self, data_loaders: dict, model, optimizer, loss_fn, device, SAM=False, smoothing=0.1):
-        self.data_loaders = data_loaders
-        self.model = model 
-        self.optimizer = optimizer
-        self.loss_fn = loss_fn
-        self.device = device
-        self.SAM = SAM
-        self.smoothing = smoothing
+    def __init__(self, 
+                 data_loaders: dict, 
+                 model, 
+                 optimizer, 
+                 loss_fn, 
+                 device, 
+                 seed, 
+                 exp_name, 
+                 exp_path, 
+                 use_SAM=False, 
+                 weight_decay_sam = 0.0005, 
+                 smoothing=0.1, 
+                 use_early_stopping=True):
+        """
+        The exp_name should be a string containing all the information about the experiment:
+        - model 
+        - optimizer 
+        - loss function
+        - other hyperparameters 
+        """
+        self.__data_loaders = data_loaders
+        self.__model = model 
+        self.__optimizer = optimizer
+        self.__loss_fn = loss_fn
+        self.__device = device
+        self.__use_SAM = use_SAM
+        self.__smoothing = smoothing
+        self.__use_early_stopping = use_early_stopping
+        self.__seed = seed
+        self.__exp_name = exp_name
+        self.__exp_path = exp_path
 
-    def train_step(model, data_loader, optimizer, loss_fn, device, SAM=False, smoothing=0.1, verbose=False, log_interval=10):
+        assert os.path.exists(exp_path), "Experiment path does not exist"
+        assert isinstance(data_loaders, dict), "data_loaders must be a dictionary with keys 'train_loader', 'val_loader', 'test_loader'"
+
+        if self.__use_SAM: 
+            
+            from models_methods.utility.smooth_cross_entropy import smooth_crossentropy
+            from models_methods.methods.SAM.sam import SAM
+
+            assert self.__smoothing >= 0.07, "smoothing must be >= 0.7 when using SAM"
+            assert self.__loss_fn == smooth_crossentropy, "loss function must be smooth_crossentropy when using SAM"   
+            self.__optimizer = SAM(self.__model.parameters(), 
+                                   self.__optimizer, 
+                                   rho=2, 
+                                   adaptive=True, 
+                                   lr=0.1, momentum=0.9, weight_decay=weight_decay_sam)
+
+    def get_model(self):
+        return self.__model 
+    
+    def get_data(self):
+        return self.__data_loaders
+    
+    def get_optimizer(self):
+        return self.__optimizer
+    
+    def get_loss(self):
+        return (self.__loss_fn, self.__smoothing)
+    
+    def get_device(self):
+        return self.__device
+    
+    def use_SAM(self):
+        return self.__SAM
+
+    def __train_step(self, verbose, log_interval):
         samples = 0.0
         cumulative_loss = 0.0
         cumulative_accuracy = 0.0
 
-        model.train()
+        self.__model.train()
 
-        if SAM:
+        if self.__use_SAM:
             from models_methods.utility.bypass_bn import enable_running_stats, disable_running_stats
 
-        for batch_idx, (inputs, targets) in enumerate(data_loader):
-            inputs, targets = inputs.to(device), targets.to(device)
+        for batch_idx, (inputs, targets) in enumerate(self.__data_loaders["train_loader"]):
+            inputs, targets = inputs.to(self.__device), targets.to(self.__device)
             
             # first forward-backward step
-            if SAM:        
-                enable_running_stats(model) # disable batch norm running stats
+            if self.__use_SAM:        
+                enable_running_stats(self.__model) # disable batch norm running stats
 
-            outputs = model(inputs)
+            outputs = self.__model(inputs)
 
-            if SAM:
-                loss = loss_fn(outputs, targets, smoothing=smoothing)
+            if self.__use_SAM:
+                loss = self.__loss_fn(outputs, targets, smoothing=self.__smoothing)
             else:
-                loss = loss_fn(outputs, targets)
+                loss = self.__loss_fn(outputs, targets)
 
             loss.mean().backward()
             
-            if SAM:
-                optimizer.first_step(zero_grad=True)
+            if self.__use_SAM:
+                self.__optimizer.first_step(zero_grad=True)
                 # second forward-backward step
-                disable_running_stats(model)
-                loss = loss_fn(model(inputs), targets, smoothing=smoothing)
+                disable_running_stats(self.__model)
+                loss = self.__loss_fn(self.__model(inputs), targets, smoothing=self.__smoothing)
                 loss.mean().backward()
-                optimizer.second_step(zero_grad=True)
+                self.__optimizer.second_step(zero_grad=True)
             else:
-                optimizer.step()
-                optimizer.zero_grad()
+                self.__optimizer.step()
+                self.__optimizer.zero_grad()
             
             samples += inputs.shape[0]
             cumulative_loss += loss.mean().item()
@@ -63,25 +121,40 @@ class Trainer:
             if verbose and batch_idx % log_interval == 0:
                 current_loss = cumulative_loss / samples
                 current_accuracy = cumulative_accuracy / samples * 100
-                print(f'Batch {batch_idx}/{len(data_loader)}, Loss: {current_loss:.4f}, Accuracy: {current_accuracy:.2f}%', end='\r')
+                print(f'Batch {batch_idx}/{len(self.__data_loaders["train_loader"])}, Loss: {current_loss:.4f}, Accuracy: {current_accuracy:.2f}%', end='\r')
 
         return cumulative_loss / samples, cumulative_accuracy / samples * 100
 
-    def test_step(model, data_loader, loss_fn, device):
+    def __test_step(self, test=False, eval=False, train=False):
+        
+        assert test + eval + train == 1, "Exactly one of test, eval, or train must be True"
+
+        if test:
+            assert isinstance(test, bool), "test must be a boolean"
+            data_loader = self.__data_loaders["test_loader"]
+        elif eval:                    
+            assert isinstance(eval, bool), "test must be a boolean"
+            data_loader = self.__data_loaders["val_loader"]
+        elif train:
+            assert isinstance(train, bool), "test must be a boolean"
+            data_loader = self.__data_loaders["train_loader"]            
+        else:
+            raise ValueError("One of test, eval or train must be True")
+
         samples = 0.
         cumulative_loss = 0.
         cumulative_accuracy = 0.
 
-        model.eval()
+        self.__model.eval()
 
         with torch.no_grad():
             for batch_idx, (inputs, targets) in enumerate(data_loader):
-                inputs = inputs.to(device)
-                targets = targets.to(device)
+                inputs = inputs.to(self.__device)
+                targets = targets.to(self.__device)
 
-                outputs = model(inputs)
+                outputs = self.__model(inputs)
 
-                loss = loss_fn(outputs, targets)
+                loss = self.__loss_fn(outputs, targets)
 
                 samples += inputs.shape[0]
                 cumulative_loss += loss.mean().item() 
@@ -91,116 +164,99 @@ class Trainer:
 
         return cumulative_loss / samples, cumulative_accuracy / samples * 100
 
-    # tensorboard logging utilities
-    def __log_values(writer, step, loss, accuracy, prefix):
-        writer.add_scalar(f"{prefix}/loss", loss, step)
-        writer.add_scalar(f"{prefix}/accuracy", accuracy, step)
-
-    def main(model,
-         optimizer,
-         loss_fn,
-         data_loaders: dict,
-         train_step: callable,
-         test_step: callable,
-         device,
-         epochs=10,
-         exp_name=None,
-         exp_path="/home/peppe/01_Study/01_University/Semester/2/Intro_to_ML/Project/Code/experiments/",
-         use_early_stopping=True,
-         patience=5,
-         delta=1e-3,
-         scheduler=None,
-         verbose_steps=True, # print after log_interval-learning steps
-         log_interval=10,
-         use_SAM=False, # if SAM=True then loss_fn must be smooth_cross_entropy with smoothing >= 0.07
-         smoothing=0.1,
-         seed=None): 
-    
-        assert os.path.exists(f"{exp_path}"), "Experiment path does not exist"
-        assert seed is not None, "Seed must be specified"
+    def main(self,
+             epochs=10,
+             patience=5,
+             delta=1e-3,
+             scheduler=None,
+             verbose_steps=True, # print after log_interval-learning steps
+             log_interval=10): 
 
         from models_methods.utility.initialize import initialize
-        initialize(seed=42)
-
-        if use_SAM == True: 
-            
-            from models_methods.utility.smooth_cross_entropy import smooth_crossentropy
-            from models_methods.methods.sam import SAM 
-
-            assert smoothing >= 0.07, "smoothing must be >= 0.7 when using SAM"
-            assert loss_fn == smooth_crossentropy, "loss function must be smooth_crossentropy when using SAM"   
-            optimizer = SAM(model.parameters(), 
-                            optimizer, 
-                            rho=2, 
-                            adaptive=True, 
-                            lr=0.1, momentum=0.9, weight_decay=0.0005)
+        initialize(self.__seed)
                 
         # Create a logger for the experiment
-        writer = SummaryWriter(log_dir=f"{exp_path + exp_name}")
+        writer = SummaryWriter(log_dir=f"{self.__exp_path + self.__exp_name}")
 
-        if use_early_stopping:
+        if self.__use_early_stopping:
             from models_methods.utility.early_stopping import EarlyStopping
             early_stopping = EarlyStopping(patience=patience, 
-                                        delta=delta,
-                                        path=f"{exp_path + exp_name + '/checkpoint.pt'}",)
+                                           delta=delta,
+                                           path=f"{self.__exp_path + self.__exp_name + '/checkpoint.pt'}")
             
-        model.to(device)
+        self.__model.to(self.__device)
         
         # Computes evaluation results before training
         print("Before training:")
-        train_loss, train_accuracy = test_step(model, data_loaders["train_loader"], loss_fn,device=device)
-        val_loss, val_accuracy = test_step(model, data_loaders["val_loader"], loss_fn,device=device)
-        test_loss, test_accuracy = test_step(model, data_loaders["test_loader"], loss_fn,device=device)
+        train_loss, train_accuracy = self.__test_step(self.__model, train=True)
+        val_loss, val_accuracy = self.__test_step(self.__model, eval=True)
+        test_loss, test_accuracy = self.__test_step(self.__model, test=True)
         
         # Log to TensorBoard
         self.__log_values(writer, -1, train_loss, train_accuracy, "Train")
         self.__log_values(writer, -1, val_loss, val_accuracy, "Validation")
         self.__log_values(writer, -1, test_loss, test_accuracy, "Test")
 
-        print(f"\tTraining loss {train_loss:.5f}, Training accuracy {train_accuracy:.2f}")
-        print(f"\tValidation loss {val_loss:.5f}, Validation accuracy {val_accuracy:.2f}")
-        print(f"\tTest loss {test_loss:.5f}, Test accuracy {test_accuracy:.2f}")
-        print("-----------------------------------------------------")
+        self.__print_statistics(train_loss, train_accuracy, val_loss, val_accuracy, test_loss, test_accuracy)
         
         pbar = tqdm(range(epochs), desc="Training")
         for e in pbar:
-            train_loss, train_accuracy = train_step(model, data_loaders["train_loader"], optimizer, loss_fn, 
-                                                    device=device, SAM=use_SAM, verbose=verbose_steps, log_interval=log_interval)
-            #if scheduler:
-            #    scheduler.step()
-            val_loss, val_accuracy = test_step(model, data_loaders["val_loader"], loss_fn,device=device)
+            train_loss, train_accuracy = self.__train_step(self.__model, verbose=verbose_steps, log_interval=log_interval)
+            # if scheduler:
+            #     scheduler.step()
+            val_loss, val_accuracy = self.__test_step(self.__model, eval=True) 
             
             print("-----------------------------------------------------")
             
-            # Logs to TensorBoard
             self.__log_values(writer, e, train_loss, train_accuracy, "Train")
             self.__log_values(writer, e, val_loss, val_accuracy, "Validation")
 
             pbar.set_postfix(train_loss=train_loss, train_accuracy=train_accuracy, val_loss=val_loss, val_accuracy=val_accuracy)
 
-            if use_early_stopping:
-                early_stopping(val_loss, model)
+            if self.__use_early_stopping:
+                early_stopping(val_loss, self.__model)
                 if early_stopping.early_stop:
                     print("Early stopping")
                     break
         # Compute final evaluation results
         print("After training:")
-        train_loss, train_accuracy = test_step(model, data_loaders["train_loader"], loss_fn,device=device)
-        val_loss, val_accuracy = test_step(model, data_loaders["val_loader"], loss_fn,device=device)
-        test_loss, test_accuracy = test_step(model, data_loaders["test_loader"], loss_fn,device=device)
+        train_loss, train_accuracy = self.__test_step(self.__model, train=True)
+        val_loss, val_accuracy = self.__test_step(self.__model, eval=True)
+        test_loss, test_accuracy = self.__test_step(self.__model, test=True)
 
-        # Log to TensorBoard
         self.__log_values(writer, epochs + 1, train_loss, train_accuracy, "Train")
         self.__log_values(writer, epochs + 1, val_loss, val_accuracy, "Validation")
         self.__log_values(writer, epochs + 1, test_loss, test_accuracy, "Test")
 
+        self.__print_statistics(train_loss, train_accuracy, val_loss, val_accuracy, test_loss, test_accuracy)
+
+        # Closes the logger
+        writer.close()
+
+        return self.__model
+    
+    def save_model(self, path=None):
+        if path:
+            torch.save(self.__model.state_dict(), path)
+            with open(path + "class.pkl", "wb") as f:
+                pickle.dump(self, f)
+            print(f"Model saved at {path}")
+        else:
+            torch.save(self.__model.state_dict(), self.__exp_path + self.__exp_name)
+            with open(self.__exp_path + self.__exp_name + "class.pkl", "wb") as f:
+                pickle.dump(self, f)
+            print(f"Model saved at {self.__exp_path + self.__exp_name}")      
+
+    def get_statistics(self):
+          pass
+    
+    def __print_statistics(self, train_loss, train_accuracy, val_loss, val_accuracy, test_loss, test_accuracy):
         print(f"\tTraining loss {train_loss:.5f}, Training accuracy {train_accuracy:.2f}")
         print(f"\tValidation loss {val_loss:.5f}, Validation accuracy {val_accuracy:.2f}")
         print(f"\tTest loss {test_loss:.5f}, Test accuracy {test_accuracy:.2f}")
         print("-----------------------------------------------------")
 
-        # Closes the logger
-        writer.close()
-
-        # Let's return the net
-        return model
+    # tensorboard logging utilities
+    def __log_values(writer, step, loss, accuracy, prefix):
+        writer.add_scalar(f"{prefix}/loss", loss, step)
+        writer.add_scalar(f"{prefix}/accuracy", accuracy, step)
