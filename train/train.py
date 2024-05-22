@@ -40,22 +40,32 @@ class Trainer:
         self.__seed = seed
         self.__exp_name = exp_name
         self.__exp_path = exp_path
+        self.__train_loss = 10000
+        self.__test_loss = 10000
+        self.__val_loss = 10000
+        self.__train_accuracy = 0
+        self.__test_accuracy = 0
+        self.__val_accuracy = 0
 
         assert os.path.exists(exp_path), "Experiment path does not exist"
-        assert isinstance(data_loaders, dict), "data_loaders must be a dictionary with keys 'train_loader', 'val_loader', 'test_loader'"
+        if os.path.exists(os.path.join(exp_path, exp_name)):
+            print("The experiment already exists, loading existing model")
+        else:
+            os.makedirs(os.path.join(exp_path, exp_name), exist_ok=True) 
+            assert isinstance(data_loaders, dict), "data_loaders must be a dictionary with keys 'train_loader', 'val_loader', 'test_loader'"
 
-        if self.__use_SAM: 
-            
-            from models_methods.utility.smooth_cross_entropy import smooth_crossentropy
-            from models_methods.methods.SAM.sam import SAM
+            if self.__use_SAM: 
+                
+                from models_methods.utility.smooth_cross_entropy import smooth_crossentropy
+                from models_methods.methods.SAM.sam import SAM
 
-            assert self.__smoothing >= 0.07, "smoothing must be >= 0.7 when using SAM"
-            assert self.__loss_fn == smooth_crossentropy, "loss function must be smooth_crossentropy when using SAM"   
-            self.__optimizer = SAM(self.__model.parameters(), 
-                                   self.__optimizer, 
-                                   rho=2, 
-                                   adaptive=True, 
-                                   lr=0.1, momentum=0.9, weight_decay=weight_decay_sam)
+                assert self.__smoothing >= 0.07, "smoothing must be >= 0.7 when using SAM"
+                assert self.__loss_fn == smooth_crossentropy, "loss function must be smooth_crossentropy when using SAM"   
+                self.__optimizer = SAM(self.__model.parameters(), 
+                                    self.__optimizer, 
+                                    rho=2, 
+                                    adaptive=True, 
+                                    lr=0.1, momentum=0.9, weight_decay=weight_decay_sam)
 
     def get_model(self):
         return self.__model 
@@ -73,7 +83,7 @@ class Trainer:
         return self.__device
     
     def use_SAM(self):
-        return self.__SAM
+        return self.__use_SAM
 
     def __train_step(self, verbose, log_interval):
         samples = 0.0
@@ -176,22 +186,22 @@ class Trainer:
         initialize(self.__seed)
                 
         # Create a logger for the experiment
-        writer = SummaryWriter(log_dir=f"{self.__exp_path + self.__exp_name}")
+        writer = SummaryWriter(log_dir=f"{os.path.join(self.__exp_path,self.__exp_name)}")
 
         if self.__use_early_stopping:
             from models_methods.utility.early_stopping import EarlyStopping
             early_stopping = EarlyStopping(patience=patience, 
                                            delta=delta,
-                                           path=f"{self.__exp_path + self.__exp_name + '/checkpoint.pt'}")
+                                           path=f"{os.path.join(self.__exp_path, self.__exp_name) + '/checkpoint.pt'}")
             
         self.__model.to(self.__device)
         
         # Computes evaluation results before training
         print("Before training:")
-        train_loss, train_accuracy = self.__test_step(self.__model, train=True)
-        val_loss, val_accuracy = self.__test_step(self.__model, eval=True)
-        test_loss, test_accuracy = self.__test_step(self.__model, test=True)
-        
+        train_loss, train_accuracy = self.__test_step(train=True)
+        val_loss, val_accuracy = self.__test_step(eval=True)
+        test_loss, test_accuracy = self.__test_step(test=True)
+                
         # Log to TensorBoard
         self.__log_values(writer, -1, train_loss, train_accuracy, "Train")
         self.__log_values(writer, -1, val_loss, val_accuracy, "Validation")
@@ -201,10 +211,10 @@ class Trainer:
         
         pbar = tqdm(range(epochs), desc="Training")
         for e in pbar:
-            train_loss, train_accuracy = self.__train_step(self.__model, verbose=verbose_steps, log_interval=log_interval)
+            train_loss, train_accuracy = self.__train_step(verbose=verbose_steps, log_interval=log_interval)
             # if scheduler:
             #     scheduler.step()
-            val_loss, val_accuracy = self.__test_step(self.__model, eval=True) 
+            val_loss, val_accuracy = self.__test_step(eval=True) 
             
             print("-----------------------------------------------------")
             
@@ -220,15 +230,16 @@ class Trainer:
                     break
         # Compute final evaluation results
         print("After training:")
-        train_loss, train_accuracy = self.__test_step(self.__model, train=True)
-        val_loss, val_accuracy = self.__test_step(self.__model, eval=True)
-        test_loss, test_accuracy = self.__test_step(self.__model, test=True)
+        train_loss, train_accuracy = self.__test_step(train=True)
+        val_loss, val_accuracy = self.__test_step(eval=True)
+        test_loss, test_accuracy = self.__test_step(test=True)
 
         self.__log_values(writer, epochs + 1, train_loss, train_accuracy, "Train")
         self.__log_values(writer, epochs + 1, val_loss, val_accuracy, "Validation")
         self.__log_values(writer, epochs + 1, test_loss, test_accuracy, "Test")
 
         self.__print_statistics(train_loss, train_accuracy, val_loss, val_accuracy, test_loss, test_accuracy)
+        self.__update_statistics(train_loss, train_accuracy, val_loss, val_accuracy, test_loss, test_accuracy)
 
         # Closes the logger
         writer.close()
@@ -248,7 +259,23 @@ class Trainer:
             print(f"Model saved at {self.__exp_path + self.__exp_name}")      
 
     def get_statistics(self):
-          pass
+        """
+        Returns the last computed statistics
+        """
+        return {"train_loss": self.__train_loss,
+                "train_accuracy": self.__train_accuracy,
+                "val_loss": self.__val_loss,
+                "val_accuracy": self.__val_accuracy,
+                "test_loss": self.__test_loss,
+                "test_accuracy": self.__test_accuracy}
+
+    def __update_statistics(self, train_loss, train_accuracy, val_loss, val_accuracy, test_loss, test_accuracy):
+        self.__train_loss = train_loss
+        self.__train_accuracy = train_accuracy
+        self.__val_loss = val_loss
+        self.__val_accuracy = val_accuracy
+        self.__test_loss = test_loss
+        self.__test_accuracy = test_accuracy
     
     def __print_statistics(self, train_loss, train_accuracy, val_loss, val_accuracy, test_loss, test_accuracy):
         print(f"\tTraining loss {train_loss:.5f}, Training accuracy {train_accuracy:.2f}")
@@ -257,6 +284,6 @@ class Trainer:
         print("-----------------------------------------------------")
 
     # tensorboard logging utilities
-    def __log_values(writer, step, loss, accuracy, prefix):
+    def __log_values(self, writer, step, loss, accuracy, prefix):
         writer.add_scalar(f"{prefix}/loss", loss, step)
         writer.add_scalar(f"{prefix}/accuracy", accuracy, step)
