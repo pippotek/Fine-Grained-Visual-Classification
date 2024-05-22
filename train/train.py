@@ -24,7 +24,6 @@ class Trainer:
                  weight_decay = 0.0005,
                  lr=0.1,
                  momentum=0.9, 
-                 smoothing=0.1,
                  rho_SAM=2, 
                  use_early_stopping=True,
                  patience=5,
@@ -43,7 +42,6 @@ class Trainer:
         self.__loss_fn = loss_fn
         self.__device = device
         self.__use_SAM = use_SAM
-        self.__smoothing = smoothing
         self.__use_early_stopping = use_early_stopping
         self.__seed = seed
         self.__train_loss = 10000
@@ -63,14 +61,13 @@ class Trainer:
         self.__exp_name = os.path.join(exp_path, exp_name)
         assert isinstance(data_loaders, dict), "data_loaders must be a dictionary with keys 'train_loader', 'val_loader', 'test_loader'"
         self.__writer = SummaryWriter(log_dir=f"{self.__exp_name}")
-        self.__writer_open = True
 
         if self.__use_SAM: 
-            from models_methods.utility.smooth_cross_entropy import smooth_crossentropy
+            from torch.nn import CrossEntropyLoss
             from models_methods.methods.SAM.sam import SAM
 
-            assert self.__smoothing >= 0.07, "smoothing must be >= 0.7 when using SAM"
-            assert self.__loss_fn == smooth_crossentropy, "loss function must be smooth_crossentropy when using SAM"   
+            assert self.__loss_fn.label_smoothing >= 0.07, "smoothing must be >= 0.7 when using SAM"
+            assert isinstance(self.__loss_fn, CrossEntropyLoss), "loss function must be CrossEntropyLoss with label_smoothing when using SAM"   
             self.__optimizer = SAM(self.__model.parameters(), 
                                    self.__optimizer, 
                                    rho=rho_SAM, 
@@ -96,7 +93,7 @@ class Trainer:
         return self.__optimizer
     
     def get_loss(self):
-        return (self.__loss_fn, self.__smoothing)
+        return self.__loss_fn
     
     def get_device(self):
         return self.__device
@@ -126,18 +123,14 @@ class Trainer:
 
             outputs = self.__model(inputs)
 
-            if self.__use_SAM:
-                loss = self.__loss_fn(outputs, targets, smoothing=self.__smoothing)
-            else:
-                loss = self.__loss_fn(outputs, targets)
-
+            loss = self.__loss_fn(outputs, targets)
             loss.mean().backward()
             
             if self.__use_SAM:
                 self.__optimizer.first_step(zero_grad=True)
                 # second forward-backward step
                 disable_running_stats(self.__model)
-                loss = self.__loss_fn(self.__model(inputs), targets, smoothing=self.__smoothing)
+                loss = self.__loss_fn(self.__model(inputs), targets)
                 loss.mean().backward()
                 self.__optimizer.second_step(zero_grad=True)
             else:
@@ -323,7 +316,7 @@ class Trainer:
             } ,
             'loss_fn': {
                 'loss_fn': str(self.__loss_fn),
-                'smoothing': self.__smoothing
+                'smoothing': self.__loss_fn.label_smoothing
             },
             'device': str(self.__device),
             'seed': self.__seed,
