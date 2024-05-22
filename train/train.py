@@ -46,6 +46,8 @@ class Trainer:
         self.__train_accuracy = 0
         self.__test_accuracy = 0
         self.__val_accuracy = 0
+        self.__epoch = 0
+        self.__trained = False
 
         assert os.path.exists(exp_path), "Experiment path does not exist"
         if os.path.exists(os.path.join(exp_path, exp_name)):
@@ -158,7 +160,7 @@ class Trainer:
         self.__model.eval()
 
         with torch.no_grad():
-            for batch_idx, (inputs, targets) in enumerate(data_loader):
+            for inputs, targets in enumerate(data_loader):
                 inputs = inputs.to(self.__device)
                 targets = targets.to(self.__device)
 
@@ -195,19 +197,18 @@ class Trainer:
                                            path=f"{os.path.join(self.__exp_path, self.__exp_name) + '/checkpoint.pt'}")
             
         self.__model.to(self.__device)
-        
-        # Computes evaluation results before training
-        print("Before training:")
-        train_loss, train_accuracy = self.__test_step(train=True)
-        val_loss, val_accuracy = self.__test_step(eval=True)
-        test_loss, test_accuracy = self.__test_step(test=True)
                 
         # Log to TensorBoard
-        self.__log_values(writer, -1, train_loss, train_accuracy, "Train")
-        self.__log_values(writer, -1, val_loss, val_accuracy, "Validation")
-        self.__log_values(writer, -1, test_loss, test_accuracy, "Test")
-
-        self.__print_statistics(train_loss, train_accuracy, val_loss, val_accuracy, test_loss, test_accuracy)
+        if self.__trained == False:
+            self.__trained = True
+            print("Before training:")
+            train_loss, train_accuracy = self.__test_step(train=True)
+            val_loss, val_accuracy = self.__test_step(eval=True)
+            test_loss, test_accuracy = self.__test_step(test=True)
+            self.__log_values(writer, self.__epoch, train_loss, train_accuracy, "Train")
+            self.__log_values(writer, self.__epoch, val_loss, val_accuracy, "Validation")
+            self.__log_values(writer, self.__epoch, test_loss, test_accuracy, "Test")
+            self.__print_statistics(train_loss, train_accuracy, val_loss, val_accuracy, test_loss, test_accuracy)
         
         pbar = tqdm(range(epochs), desc="Training")
         for e in pbar:
@@ -217,9 +218,9 @@ class Trainer:
             val_loss, val_accuracy = self.__test_step(eval=True) 
             
             print("-----------------------------------------------------")
-            
-            self.__log_values(writer, e, train_loss, train_accuracy, "Train")
-            self.__log_values(writer, e, val_loss, val_accuracy, "Validation")
+            self.__epoch += 1
+            self.__log_values(writer, self.__epoch, train_loss, train_accuracy, "Train")
+            self.__log_values(writer, self.__epoch, val_loss, val_accuracy, "Validation")
 
             pbar.set_postfix(train_loss=train_loss, train_accuracy=train_accuracy, val_loss=val_loss, val_accuracy=val_accuracy)
 
@@ -234,9 +235,9 @@ class Trainer:
         val_loss, val_accuracy = self.__test_step(eval=True)
         test_loss, test_accuracy = self.__test_step(test=True)
 
-        self.__log_values(writer, epochs + 1, train_loss, train_accuracy, "Train")
-        self.__log_values(writer, epochs + 1, val_loss, val_accuracy, "Validation")
-        self.__log_values(writer, epochs + 1, test_loss, test_accuracy, "Test")
+        self.__log_values(writer, self.__epoch, train_loss, train_accuracy, "Train")
+        self.__log_values(writer, self.__epoch, val_loss, val_accuracy, "Validation")
+        self.__log_values(writer, self.__epoch, test_loss, test_accuracy, "Test")
 
         self.__print_statistics(train_loss, train_accuracy, val_loss, val_accuracy, test_loss, test_accuracy)
         self.__update_statistics(train_loss, train_accuracy, val_loss, val_accuracy, test_loss, test_accuracy)
