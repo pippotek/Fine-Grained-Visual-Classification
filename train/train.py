@@ -105,9 +105,18 @@ class Trainer:
         return self.__exp_name
 
     def __train_step(self, verbose, log_interval):
+        """
+        log_interval can be an integer or a float between 0 and 1. If it is an integer, the function will print the statistics every log_interval steps.
+        If it is a float, the function will print the statistics every log_interval*num_of_batches steps.
+        """
         samples = 0.0
         cumulative_loss = 0.0
         cumulative_accuracy = 0.0
+        
+        assert isinstance(verbose, bool), "verbose must be a boolean"
+        assert isinstance(log_interval, (int, float)) and log_interval>0, "log_interval must be an integer or a float and non-negative"
+        if log_interval < 1:
+            log_interval = int(len(self.__data_loaders["train_loader"])*log_interval)
 
         self.__model.train()
 
