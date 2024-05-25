@@ -44,15 +44,10 @@ class Trainer:
         self.__use_SAM = use_SAM
         self.__use_early_stopping = use_early_stopping
         self.__seed = seed
-        self.__train_loss = 10000
-        self.__test_loss = 10000
-        self.__val_loss = 10000
-        self.__train_accuracy = 0
-        self.__test_accuracy = 0
-        self.__val_accuracy = 0
         self.__epoch = 0
-        self.__trained = False
+        self.__trained = True
         self.__scheduler = scheduler
+        self.__best_loss = float("inf")
 
         assert os.path.exists(exp_path), "Experiment path does not exist"
         assert os.path.exists(os.path.join(exp_path, exp_name)) == False, "The experiment already exists"
@@ -80,26 +75,17 @@ class Trainer:
             from models_methods.utility.early_stopping import EarlyStopping
             self.__early_stopping = EarlyStopping(patience=patience, 
                                                   delta=delta,
-                                                  path=f"{self.__exp_name + '/checkpoint.pt'}")
-        self.__save_config(dataset_name, rho_SAM, momentum, weight_decay, lr, patience, delta)
+                                                  path=os.path.join(self.__exp_name,"checkpoint.pth"))
+            self.__save_config(dataset_name, rho_SAM, momentum, weight_decay, lr, patience, delta)
 
     def get_model(self):
         return self.__model 
     
-    def get_data(self):
-        return self.__data_loaders
-    
     def get_optimizer(self):
         return self.__optimizer
     
-    def get_loss(self):
-        return self.__loss_fn
-    
     def get_device(self):
         return self.__device
-    
-    def use_SAM(self):
-        return self.__use_SAM
     
     def get_exp_name(self):
         return self.__exp_name
@@ -242,10 +228,19 @@ class Trainer:
             pbar.set_postfix(train_loss=train_loss, train_accuracy=train_accuracy, val_loss=val_loss, val_accuracy=val_accuracy)
 
             if self.__use_early_stopping:
-                self.__early_stopping(val_loss, self.__model)
+                self.__early_stopping(val_loss,self.__model, self.__optimizer, self.__scheduler)
                 if self.__early_stopping.early_stop:
                     print("Early stopping")
-                    break
+                    break       
+            else:
+                if val_loss < self.__best_loss:
+                    self.__best_loss = val_loss
+                    torch.save({
+                        "model": self.__model.state_dict(),
+                        "optimizer": self.__optimizer.state_dict(),
+                        "scheduler": self.__scheduler.state_dict() if self.__scheduler is not None else None
+                        }, 
+                        os.path.join(self.__exp_name,"checkpoint.pth"))
         
         # Compute final evaluation results
         print("After training:")
@@ -260,15 +255,7 @@ class Trainer:
         self.__print_statistics(train_loss, train_accuracy, val_loss, val_accuracy, test_loss, test_accuracy)
 
         # Flush the logs to disk 
-        self.__writer.flush()
-
-        if self.__use_early_stopping == False:
-            # save the model if early stopping was not used
-            loss = self.get_statistics()["val_loss"]
-            if val_loss < loss:
-                torch.save(self.__model.state_dict(), 
-                           self.__exp_name) 
-            self.__update_statistics(train_loss, train_accuracy, val_loss, val_accuracy, test_loss, test_accuracy)
+        self.__writer.flush()            
 
     def close_writer(self):
         self.__writer.close()
@@ -282,25 +269,6 @@ class Trainer:
         self.__exp_name = new_name
         self.__writer = SummaryWriter(log_dir=f"{self.__exp_name}")
         print(f"Experiment name was changed to {new_name}")
-
-    def get_statistics(self):
-        """
-        Returns the last computed statistics
-        """
-        return {"train_loss": self.__train_loss,
-                "train_accuracy": self.__train_accuracy,
-                "val_loss": self.__val_loss,
-                "val_accuracy": self.__val_accuracy,
-                "test_loss": self.__test_loss,
-                "test_accuracy": self.__test_accuracy}
-
-    def __update_statistics(self, train_loss, train_accuracy, val_loss, val_accuracy, test_loss, test_accuracy):
-        self.__train_loss = train_loss
-        self.__train_accuracy = train_accuracy
-        self.__val_loss = val_loss
-        self.__val_accuracy = val_accuracy
-        self.__test_loss = test_loss
-        self.__test_accuracy = test_accuracy
     
     def __print_statistics(self, train_loss, train_accuracy, val_loss, val_accuracy, test_loss, test_accuracy):
         print(f"\tTraining loss {train_loss:.5f}, Training accuracy {train_accuracy:.2f}")
@@ -315,14 +283,13 @@ class Trainer:
         
     def __save_config(self, dataset_name, rho_SAM, momentum, weight_decay, lr, patience, delta):
         config = {
-            'exp_path': self.__exp_name,
             'data': { 
                 'batch_size':self.__data_loaders["train_loader"].batch_size,
                 'dataset_name': dataset_name
             }, 
-            'model': str(self.__model), 
+            'model': str(type(self.__model)),
             'optimizer': {
-                'optimizer': str(self.__optimizer),
+                'optimizer': str(type(self.__optimizer)),
                 'momentum': momentum,
                 'weight_decay': weight_decay,
                 'lr': lr,
@@ -334,7 +301,6 @@ class Trainer:
                 'loss_fn': str(self.__loss_fn),
                 'smoothing': self.__loss_fn.label_smoothing
             },
-            'device': str(self.__device),
             'seed': self.__seed,
             'early_stopping': {
                 'use_early_stopping': self.__use_early_stopping,
