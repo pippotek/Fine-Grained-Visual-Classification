@@ -67,7 +67,7 @@ class Trainer:
         self.__save_config(dataset_name, rho_SAM, patience, delta)
 
     def get_model(self):
-        return self.__model.copy()
+        return self.__model
     
     def get_optimizer(self):
         return self.__optimizer
