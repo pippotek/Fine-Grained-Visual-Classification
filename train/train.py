@@ -132,6 +132,10 @@ class Trainer:
 
             outputs = self.__model(inputs)
 
+            # if using PIM, the model returns a dictionary with different outputs; comb_outs is the probability for each class
+            if isinstance(outputs, dict):
+                outputs = outputs["comb_outs"]
+
             loss = self.__loss_fn(outputs, targets)
             loss.mean().backward()
             
@@ -187,6 +191,9 @@ class Trainer:
                 targets = targets.to(self.__device)
 
                 outputs = self.__model(inputs)
+
+                if isinstance(outputs, dict):
+                    outputs = outputs["comb_outs"]
 
                 loss = self.__loss_fn(outputs, targets)
 
