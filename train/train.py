@@ -14,17 +14,13 @@ class Trainer:
                  data_loaders: dict, 
                  dataset_name: str,
                  model: torch.nn.Module, 
-                 optimizer: callable, 
+                 optimizer: torch.optim, 
                  loss_fn: torch.nn, 
                  device, 
                  seed: int, 
                  exp_name, # the name of this experiment
                  exp_path, # where you keep all the experiments
-                 use_SAM=False, 
-                 weight_decay = 0.0005,
-                 lr=0.1,
-                 momentum=0.9, 
-                 rho_SAM=2, 
+                 rho_SAM=None, 
                  use_early_stopping=True,
                  patience=5,
                  delta=1e-3,
@@ -41,7 +37,6 @@ class Trainer:
         self.__optimizer = optimizer
         self.__loss_fn = loss_fn
         self.__device = device
-        self.__use_SAM = use_SAM
         self.__use_early_stopping = use_early_stopping
         self.__seed = seed
         self.__epoch = 0
@@ -51,35 +46,28 @@ class Trainer:
 
         assert os.path.exists(exp_path), "Experiment path does not exist"
         assert os.path.exists(os.path.join(exp_path, exp_name)) == False, "The experiment already exists"
-        
-        os.makedirs(os.path.join(exp_path, exp_name), exist_ok=True) 
         self.__exp_name = os.path.join(exp_path, exp_name)
+
         assert isinstance(data_loaders, dict), "data_loaders must be a dictionary with keys 'train_loader', 'val_loader', 'test_loader'"
-        self.__writer = SummaryWriter(log_dir=f"{self.__exp_name}")
-
-        if self.__use_SAM: 
+        
+        if self.__optimizer.__class__.__name__ == "SAM": 
             from torch.nn import CrossEntropyLoss
-            from models_methods.methods.SAM.sam import SAM
-
             assert self.__loss_fn.label_smoothing >= 0.07, "smoothing must be >= 0.7 when using SAM"
             assert isinstance(self.__loss_fn, CrossEntropyLoss), "loss function must be CrossEntropyLoss with label_smoothing when using SAM"   
-            self.__optimizer = SAM(self.__model.parameters(), 
-                                   self.__optimizer, 
-                                   rho=rho_SAM, 
-                                   adaptive=True, 
-                                   lr=lr, momentum=momentum, weight_decay=weight_decay)
-        else:
-            self.__optimizer = optimizer(self.__model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
-
+            rho_SAM = self.__optimizer.param_groups[0]['rho']  
+        
         if self.__use_early_stopping:
             from models_methods.utility.early_stopping import EarlyStopping
             self.__early_stopping = EarlyStopping(patience=patience, 
                                                   delta=delta,
                                                   path=os.path.join(self.__exp_name,"checkpoint.pth"))
-            self.__save_config(dataset_name, rho_SAM, momentum, weight_decay, lr, patience, delta)
+
+        os.makedirs(self.__exp_name, exist_ok=True) 
+        self.__writer = SummaryWriter(log_dir=f"{self.__exp_name}")
+        self.__save_config(dataset_name, rho_SAM, patience, delta)
 
     def get_model(self):
-        return self.__model 
+        return self.__model.copy()
     
     def get_optimizer(self):
         return self.__optimizer
@@ -106,14 +94,14 @@ class Trainer:
 
         self.__model.train()
 
-        if self.__use_SAM:
+        if self.__optimizer.__class__.__name__ == "SAM":
             from models_methods.utility.bypass_bn import enable_running_stats, disable_running_stats
 
         for batch_idx, (inputs, targets) in enumerate(self.__data_loaders["train_loader"]):
             inputs, targets = inputs.to(self.__device), targets.to(self.__device)
             
             # first forward-backward step
-            if self.__use_SAM:        
+            if self.__optimizer.__class__.__name__ == "SAM":        
                 enable_running_stats(self.__model) # disable batch norm running stats
 
             outputs = self.__model(inputs)
@@ -125,7 +113,7 @@ class Trainer:
             loss = self.__loss_fn(outputs, targets)
             loss.mean().backward()
             
-            if self.__use_SAM:
+            if self.__optimizer.__class__.__name__ == "SAM":
                 self.__optimizer.first_step(zero_grad=True)
                 # second forward-backward step
                 disable_running_stats(self.__model)
@@ -135,7 +123,7 @@ class Trainer:
             else:
                 self.__optimizer.step()
                 self.__optimizer.zero_grad()
-            
+
             samples += inputs.shape[0]
             cumulative_loss += loss.mean().item()
             _, predicted = outputs.max(dim=1)
@@ -146,7 +134,10 @@ class Trainer:
                 current_loss = cumulative_loss / samples
                 current_accuracy = cumulative_accuracy / samples * 100
                 print(f'Batch {batch_idx}/{len(self.__data_loaders["train_loader"])}, Loss: {current_loss:.4f}, Accuracy: {current_accuracy:.2f}%', end='\r')
-
+        
+        if self.__scheduler:
+            self.__scheduler.step()
+            
         return cumulative_loss / samples, cumulative_accuracy / samples * 100
 
     def __test_step(self, test=False, eval=False, train=False):
@@ -216,10 +207,8 @@ class Trainer:
         pbar = tqdm(range(epochs), desc="Training")
         for _ in pbar:
             train_loss, train_accuracy = self.__train_step(verbose=verbose_steps, log_interval=log_interval)
-            # if scheduler:
-            #     scheduler.step()
             val_loss, val_accuracy = self.__test_step(eval=True) 
-            
+
             print("-----------------------------------------------------")
             self.__epoch += 1
             self.__log_values(self.__writer, self.__epoch, train_loss, train_accuracy, "Train")
@@ -281,24 +270,23 @@ class Trainer:
         writer.add_scalar(f"{prefix}/loss", loss, step)
         writer.add_scalar(f"{prefix}/accuracy", accuracy, step)
         
-    def __save_config(self, dataset_name, rho_SAM, momentum, weight_decay, lr, patience, delta):
+    def __save_config(self, dataset_name, rho_SAM, patience, delta):
         config = {
             'data': { 
                 'batch_size':self.__data_loaders["train_loader"].batch_size,
                 'dataset_name': dataset_name
             }, 
-            'model': str(type(self.__model)),
+            'model': self.__model.__class__.__name__,
             'optimizer': {
-                'optimizer': str(type(self.__optimizer)),
-                'momentum': momentum,
-                'weight_decay': weight_decay,
-                'lr': lr,
-                'use_SAM': self.__use_SAM,
-                "rho_SAM": rho_SAM,
-                'scheduler': str(self.__scheduler)
+                'optimizer': self.__optimizer.__class__.__name__,
+                'momentum': self.__optimizer.param_groups[0]['momentum'],
+                'weight_decay': self.__optimizer.param_groups[0]['weight_decay'],
+                'lr': self.__optimizer.param_groups[0]['lr'],
+                "rho_SAM": rho_SAM 
             } ,
+            'scheduler': self.__scheduler.__class__.__name__ if self.__scheduler is not None else None,
             'loss_fn': {
-                'loss_fn': str(self.__loss_fn),
+                'loss_fn': self.__loss_fn.__class__.__name__,
                 'smoothing': self.__loss_fn.label_smoothing
             },
             'seed': self.__seed,
