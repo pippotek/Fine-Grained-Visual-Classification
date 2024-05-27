@@ -6,6 +6,7 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from sklearn.metrics import precision_score, recall_score
+import numpy as np
 from test import Tester
 
 class Trainer(Tester):
@@ -108,9 +109,11 @@ class Trainer(Tester):
         if self.__optimizer.__class__.__name__ == "SAM":
             from models_methods.utility.bypass_bn import enable_running_stats, disable_running_stats
 
-        y_true = []
-        y_pred = []
+        num_samples = len(self._Tester__data_loaders["train_loader"].dataset)
+        y_true = np.zeros(num_samples, dtype=int)
+        y_pred = np.zeros(num_samples, dtype=int)
 
+        index = 0
         for batch_idx, (inputs, targets) in enumerate(self._Tester__data_loaders["train_loader"]):
             inputs, targets = inputs.to(self._Tester__device), targets.to(self._Tester__device)
             
@@ -144,8 +147,11 @@ class Trainer(Tester):
                 current_loss = cumulative_loss / samples
                 current_accuracy = cumulative_accuracy / samples * 100
                 print(f'Batch {batch_idx}/{len(self._Tester__data_loaders["train_loader"])}, Loss: {current_loss:.4f}, Accuracy: {current_accuracy:.2f}%', end='\r')
-            y_true.extend(targets.detach().cpu().numpy())
-            y_pred.extend(predicted.detach().cpu().numpy())
+            
+            batch_size = inputs.shape[0]
+            y_true[index:index + batch_size] = targets.cpu().numpy()
+            y_pred[index:index + batch_size] = predicted.cpu().numpy()
+            index += batch_size
 
         if self.__scheduler:
             self.__scheduler.step()
