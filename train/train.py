@@ -5,6 +5,7 @@ print("Warning: the working directory was changed to", os.getcwd())
 import torch
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+from sklearn.metrics import precision_score, recall_score
 from test import Tester
 
 class Trainer(Tester):
@@ -35,7 +36,7 @@ class Trainer(Tester):
         self.__use_early_stopping = use_early_stopping
         self.__seed = seed
         self.__epoch = 0
-        self.__trained = True
+        self.__trained = False
         self.__scheduler = scheduler
         self.__best_loss = float("inf")
 
@@ -107,6 +108,9 @@ class Trainer(Tester):
         if self.__optimizer.__class__.__name__ == "SAM":
             from models_methods.utility.bypass_bn import enable_running_stats, disable_running_stats
 
+        y_true = []
+        y_pred = []
+
         for batch_idx, (inputs, targets) in enumerate(self._Tester__data_loaders["train_loader"]):
             inputs, targets = inputs.to(self._Tester__device), targets.to(self._Tester__device)
             
@@ -140,11 +144,18 @@ class Trainer(Tester):
                 current_loss = cumulative_loss / samples
                 current_accuracy = cumulative_accuracy / samples * 100
                 print(f'Batch {batch_idx}/{len(self._Tester__data_loaders["train_loader"])}, Loss: {current_loss:.4f}, Accuracy: {current_accuracy:.2f}%', end='\r')
-        
+            y_true.extend(targets.detach().cpu().numpy())
+            y_pred.extend(predicted.detach().cpu().numpy())
+
         if self.__scheduler:
             self.__scheduler.step()
-            
-        return cumulative_loss / samples, cumulative_accuracy / samples * 100
+
+        accuracy = cumulative_accuracy / samples * 100    
+        avg_loss = cumulative_loss / samples    
+        precision = precision_score(y_true, y_pred, average='weighted', zero_division=0) * 100
+        recall = recall_score(y_true, y_pred, average='weighted', zero_division=0) * 100
+
+        return avg_loss, accuracy, precision, recall
 
     def main(self,
              epochs=10,
@@ -160,23 +171,23 @@ class Trainer(Tester):
         if self.__trained == False:
             self.__trained = True
             print("Before training:")
-            train_loss, train_accuracy = self.test_step(train=True)
-            val_loss, val_accuracy = self.test_step(eval=True)
-            test_loss, test_accuracy = self.test_step(test=True)
-            self.__log_values(self.__writer, self.__epoch, train_loss, train_accuracy, "Train")
-            self.__log_values(self.__writer, self.__epoch, val_loss, val_accuracy, "Validation")
-            self.__log_values(self.__writer, self.__epoch, test_loss, test_accuracy, "Test")
+            train_loss, train_accuracy, train_precision, train_recall = self.test_step(train=True, precision=True, recall=True)
+            val_loss, val_accuracy, val_precision, val_recall = self.test_step(eval=True,precision=True, recall=True) 
+            test_loss, test_accuracy, test_precision, test_recall = self.test_step(test=True,precision=True, recall=True)
+            self.__log_values(self.__writer, self.__epoch, train_loss, train_accuracy,train_precision, train_recall, "Train")
+            self.__log_values(self.__writer, self.__epoch, val_loss, val_accuracy, val_precision, val_recall, "Validation")
+            self.__log_values(self.__writer, self.__epoch, test_loss, test_accuracy, test_precision, test_recall, "Test")
             self.__print_statistics(train_loss, train_accuracy, val_loss, val_accuracy, test_loss, test_accuracy)
         
         pbar = tqdm(range(epochs), desc="Training")
         for _ in pbar:
-            train_loss, train_accuracy = self.__train_step(verbose=verbose_steps, log_interval=log_interval)
-            val_loss, val_accuracy = self.test_step(eval=True) 
+            train_loss, train_accuracy, train_precision, train_recall = self.__train_step(verbose=verbose_steps, log_interval=log_interval)
+            val_loss, val_accuracy, val_precision, val_recall = self.test_step(eval=True) 
 
             print("-----------------------------------------------------")
             self.__epoch += 1
-            self.__log_values(self.__writer, self.__epoch, train_loss, train_accuracy, "Train")
-            self.__log_values(self.__writer, self.__epoch, val_loss, val_accuracy, "Validation")
+            self.__log_values(self.__writer, self.__epoch, train_loss, train_accuracy,train_precision, train_recall, "Train")
+            self.__log_values(self.__writer, self.__epoch, val_loss, val_accuracy, val_precision, val_recall, "Validation")
 
             pbar.set_postfix(train_loss=train_loss, train_accuracy=train_accuracy, val_loss=val_loss, val_accuracy=val_accuracy)
 
@@ -197,13 +208,13 @@ class Trainer(Tester):
         
         # Compute final evaluation results
         print("After training:")
-        train_loss, train_accuracy = self.test_step(train=True)
-        val_loss, val_accuracy = self.test_step(eval=True)
-        test_loss, test_accuracy = self.test_step(test=True)
+        train_loss, train_accuracy, train_precision, train_recall = self.test_step(train=True, precision=True, recall=True)
+        val_loss, val_accuracy, val_precision, val_recall = self.test_step(eval=True, precision=True, recall=True) 
+        test_loss, test_accuracy, test_precision, test_recall = self.test_step(test=True, precision=True, recall=True)
 
-        self.__log_values(self.__writer, self.__epoch, train_loss, train_accuracy, "Train")
-        self.__log_values(self.__writer, self.__epoch, val_loss, val_accuracy, "Validation")
-        self.__log_values(self.__writer, self.__epoch, test_loss, test_accuracy, "Test")
+        self.__log_values(self.__writer, self.__epoch, train_loss, train_accuracy,train_precision, train_recall, "Train")
+        self.__log_values(self.__writer, self.__epoch, val_loss, val_accuracy, val_precision, val_recall, "Validation")
+        self.__log_values(self.__writer, self.__epoch, test_loss, test_accuracy, test_precision, test_recall, "Test")
 
         self.__print_statistics(train_loss, train_accuracy, val_loss, val_accuracy, test_loss, test_accuracy)
 
@@ -230,9 +241,11 @@ class Trainer(Tester):
         print("-----------------------------------------------------")
 
     # tensorboard logging utilities
-    def __log_values(self, writer, step, loss, accuracy, prefix):
+    def __log_values(self, writer, step, loss, accuracy,precision, recall, prefix):
         writer.add_scalar(f"{prefix}/loss", loss, step)
         writer.add_scalar(f"{prefix}/accuracy", accuracy, step)
+        writer.add_scalar(f"{prefix}/precision", precision, step)
+        writer.add_scalar(f"{prefix}/recall", recall, step)
         
     def __save_config(self, dataset_name, rho_SAM, patience, delta):
         config = {
