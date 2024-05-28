@@ -89,7 +89,7 @@ class Tester:
         # Preallocate numpy arrays
         y_true = np.zeros(num_samples, dtype=int)
         y_pred = np.zeros(num_samples, dtype=int)
-
+        
         self.__model.eval()
 
         with torch.no_grad():
@@ -108,24 +108,40 @@ class Tester:
         
         return {"y_true": y_true, "y_pred" : y_pred}
     
-    def plot_confusion_matrix(self, return_confusion_matrix=False, width=10, height=8, cmap="Blues", fmt="d"):
+    def top_k_accuracy(self, train=False, eval=False, test=False, k=5):
         
-        dict_preds = self.get_predictions(test=True)
+        assert test + eval + train == 1, "Exactly one of test, eval, or train must be True"
 
-        y_true = dict_preds["y_true"]
-        y_pred = dict_preds["y_pred"]
-
-        conf_matrix = confusion_matrix(y_true, y_pred)
-        classes = np.unique(y_pred)
-        return classes, conf_matrix
-
-        plt.figure(figsize=(width, height)) 
-        plot = sns.heatmap(confusion_matrix, annot=True, fmt=fmt, cmap=cmap,
-                            xticklabels=classes, yticklabels=classes)
-        plt.xlabel('Predicted')
-        plt.ylabel('True')
-        plt.title('Confusion Matrix')
-        plt.show()
+        if test:
+            assert isinstance(test, bool), "test must be a boolean"
+            data_loader = self.__data_loaders["test_loader"]
+        elif eval:                    
+            assert isinstance(eval, bool), "test must be a boolean"
+            data_loader = self.__data_loaders["val_loader"]
+        elif train:
+            assert isinstance(train, bool), "test must be a boolean"
+            data_loader = self.__data_loaders["train_loader"]            
+        else:
+            raise ValueError("One of test, eval or train must be True")
         
-        if return_confusion_matrix:
-            return conf_matrix
+        self.__model.eval()
+        top_k_correct = 0
+        total = 0
+
+        with torch.no_grad():
+            for inputs, targets in data_loader:
+                inputs = inputs.to(self.__device)
+                targets = targets.to(self.__device)
+
+                outputs = self.__model(inputs)
+                _, top_k_preds = outputs.topk(k, dim=1, largest=True, sorted=True)
+                
+                # Check if the true labels are in the top k predictions
+                correct = top_k_preds.eq(targets.view(-1, 1).expand_as(top_k_preds))
+                
+                # Sum the number of correct predictions
+                top_k_correct += correct.sum().item()
+                total += targets.size(0)
+        
+        top_k_accuracy = top_k_correct / total
+        return top_k_accuracy
