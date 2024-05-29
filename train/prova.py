@@ -5,12 +5,11 @@ import torch.nn as nn
 import torch.optim as optim
 
 from train import Trainer
-from test import Tester
 
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'models_methods')))
-from methods.CMAL.builder_resnet import Network_Wrapper, Features
+from methods.CMAL.builder_resnet import Network_Wrapper
 from torch.utils.model_zoo import load_url as load_state_dict_from_url
 from torch.optim.lr_scheduler import StepLR
 
@@ -84,7 +83,6 @@ training = Trainer(
     exp_path="/home/zazza/Documents/ML/fgvc-aircraft/",
     exp_name="test_1",
     use_early_stopping=True,
-    scheduler=scheduler, 
-    cmal=True)
+    scheduler=scheduler)
 
 training.main(epochs=3, log_interval = 100)

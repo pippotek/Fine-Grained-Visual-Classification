@@ -1,10 +1,4 @@
-import numpy as np
-import random
 import torch
-import torchvision
-from torch.autograd import Variable
-from torchvision import transforms, models
-import torch.nn.functional as F
 
 def map_generate(attention_map, pred, p1, p2):
     batches, feaC, feaH, feaW = attention_map.size()

@@ -1,20 +1,10 @@
 from __future__ import print_function
-import os
-from PIL import Image
-import torchvision.models
-import logging
-import random
 import torch
-import torch.optim as optim
-import torch.backends.cudnn as cudnn
-from torch.utils.model_zoo import load_url as load_state_dict_from_url
 import torch.nn as nn
 
 from methods.CMAL.highlight_images import *
 from methods.CMAL.map_generate import *
 from methods.CMAL.basic_conv import BasicConv
-
-from torch.optim.lr_scheduler import StepLR
 
 # Extract features from an input tensor taking first 8 layers of the model 
 # and separates them into sequential models, forward applies layers to input tensors

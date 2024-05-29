@@ -13,7 +13,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'models_methods')))
 
 # Import the cmal_train function
-from methods.SAM.CMAL.builder_resnet import cmal_train
+from methods.CMAL.builder_resnet import cmal_train
 
 class Trainer(Tester):
 
@@ -30,8 +30,7 @@ class Trainer(Tester):
                  use_early_stopping=True,
                  patience=5,
                  delta=1e-3,
-                 scheduler=None,
-                 cmal=False):
+                 scheduler=None):
         """
         The exp_name should be a string containing all the information about the experiment:
         - model 
@@ -47,7 +46,6 @@ class Trainer(Tester):
         self.__trained = False
         self.__scheduler = scheduler
         self.__best_loss = float("inf")
-        self.cmal = cmal
 
         assert os.path.exists(exp_path), "Experiment path does not exist"
         assert os.path.exists(os.path.join(exp_path, exp_name)) == False, "The experiment already exists"
@@ -130,7 +128,7 @@ class Trainer(Tester):
             # if inputs.shape[0] < batch_size:  # check that number of input samples is less than batch size
             # continue
 
-            if not self.cmal:
+            if not self.model.__class.name == "Network_Wrapper":
                 # first forward-backward step
                 if self.__optimizer.__class__.__name__ == "SAM":        
                     enable_running_stats(self._Tester__model) # disable batch norm running stats

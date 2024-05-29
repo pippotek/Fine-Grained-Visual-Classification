@@ -1,10 +1,5 @@
-import numpy as np
-import random
 import torch
-import torchvision
-from torch.autograd import Variable
-from torchvision import transforms, models
-import torch.nn.functional as F
+from torchvision import transforms
 from methods.CMAL.basic_conv import *
 
 
