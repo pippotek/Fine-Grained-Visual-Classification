@@ -102,8 +102,13 @@ class Tester:
                 targets = targets.to(self.__device)
 
                 batch_size = inputs.shape[0]
-                outputs = self.__model(inputs)
-                _, predicted = outputs.max(1)
+                if not self.__model.__class__.__name__ == "Network_Wrapper":                
+                    outputs = self.__model(inputs)
+                    _, predicted = outputs.max(1)
+                else:
+                    netp = torch.nn.DataParallel(self.__model, device_ids=[0])
+                    _, _, _, outputs, _, _, _ = netp(inputs)
+                    _, predicted = torch.max(outputs.data, 1)
 
                 y_true[index:index + batch_size] = targets.cpu().numpy()
                 y_pred[index:index + batch_size] = predicted.cpu().numpy()
@@ -136,7 +141,12 @@ class Tester:
                 inputs = inputs.to(self.__device)
                 targets = targets.to(self.__device)
 
-                outputs = self.__model(inputs)
+                if not self.__model.__class__.__name__ == "Network_Wrapper":                
+                    outputs = self.__model(inputs)
+                else:
+                    netp = torch.nn.DataParallel(self.__model, device_ids=[0])
+                    _, _, _, outputs, _, _, _ = netp(inputs)
+                
                 _, top_k_preds = outputs.topk(k, dim=1, largest=True, sorted=True)
                 
                 # Check if the true labels are in the top k predictions
