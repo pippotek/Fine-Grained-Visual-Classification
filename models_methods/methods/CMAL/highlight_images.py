@@ -1,6 +1,6 @@
 import torch
 from torchvision import transforms
-from methods.CMAL.basic_conv import *
+from models_methods.methods.CMAL.basic_conv import *
 
 
 # Highlight images

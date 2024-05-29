@@ -9,11 +9,8 @@ from sklearn.metrics import precision_score, recall_score
 import numpy as np
 from test import Tester
 
-import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'models_methods')))
-
 # Import the cmal_train function
-from methods.CMAL.builder_resnet import cmal_train
+from models_methods.methods.CMAL.builder_resnet import cmal_train
 
 class Trainer(Tester):
 

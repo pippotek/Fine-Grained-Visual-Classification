@@ -2,9 +2,9 @@ from __future__ import print_function
 import torch
 import torch.nn as nn
 
-from methods.CMAL.highlight_images import *
-from methods.CMAL.map_generate import *
-from methods.CMAL.basic_conv import BasicConv
+from models_methods.methods.CMAL.highlight_images import *
+from models_methods.methods.CMAL.map_generate import *
+from models_methods.methods.CMAL.basic_conv import BasicConv
 
 # Extract features from an input tensor taking first 8 layers of the model 
 # and separates them into sequential models, forward applies layers to input tensors

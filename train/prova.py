@@ -6,10 +6,7 @@ import torch.optim as optim
 
 from train import Trainer
 
-import os
-import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'models_methods')))
-from methods.CMAL.builder_resnet import Network_Wrapper
+from models_methods.methods.CMAL.builder_resnet import Network_Wrapper
 from torch.utils.model_zoo import load_url as load_state_dict_from_url
 from torch.optim.lr_scheduler import StepLR
 
