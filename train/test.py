@@ -5,11 +5,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 class Tester:
-    def __init__(self, model, dataloaders, device, loss_fn):
+    def __init__(self, model, dataloaders, device, loss_fn, cmal=False):
         self.__model = model
         self.__data_loaders = dataloaders
         self.__device = device
         self.__loss_fn = loss_fn
+        self.cmal = cmal
 
     def test_step(self, test=False, eval=False, train=False, precision=False, recall=False):
         
@@ -43,7 +44,10 @@ class Tester:
                 inputs = inputs.to(self.__device)
                 targets = targets.to(self.__device)
 
-                outputs = self.__model(inputs)
+                if not self.cmal:
+                    outputs = self.__model(inputs)
+                else:
+                    _, _, _, outputs, _, _, _ = self.__model(inputs)
 
                 loss = self.__loss_fn(outputs, targets)
 
