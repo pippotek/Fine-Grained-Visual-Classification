@@ -43,18 +43,45 @@ class Tester:
                 inputs = inputs.to(self.__device)
                 targets = targets.to(self.__device)
 
-                if not self.model.__class.name == "Network_Wrapper":
+                if not self.__model.__class__.__name__ == "Network_Wrapper":
                     outputs = self.__model(inputs)
                 else:
                     _, _, _, outputs, _, _, _ = self.__model(inputs)
 
-                loss = self.__loss_fn(outputs, targets)
+                if isinstance(outputs, dict): # if using PIM
+
+                    loss = 0 
+
+                    for name in outputs:
+                    
+                        if "drop_" in name:
+                            S = outputs[name].size(1)
+                            logit = outputs[name].view(-1, self.__num_classes).contiguous()
+                            n_preds = torch.nn.Tanh()(logit)
+                            labels_0 = torch.zeros(n_preds.size()) - 1
+                            labels_0 = labels_0.to(self.__device)
+                            loss_n = torch.nn.MSELoss()(n_preds, labels_0)
+                            loss += 5 * loss_n
+
+                        elif "layer" in name:    
+                            loss_b = torch.nn.CrossEntropyLoss()(outputs[name].mean(1), targets)
+                            loss += 0.5* loss_b
+                        
+                        elif "comb_outs" in name:
+                    
+                            loss_c = torch.nn.CrossEntropyLoss()(outputs[name], targets)
+                            loss += 1 * loss_c
+                else:
+                    loss = self.__loss_fn(outputs, targets)
 
                 batch_size = inputs.shape[0]
                 samples += inputs.shape[0]
                 cumulative_loss += loss.item() 
-                _, predicted = outputs.max(1)
-
+                if isinstance(outputs, dict):
+                    predicted = torch.argmax(outputs['comb_outs'][0])               
+                else:    
+                    _, predicted = outputs.max(dim=1)
+                
                 correct_predictions += predicted.eq(targets).sum().item()
                 
                 y_true[index:index + batch_size] = targets.cpu().numpy()
@@ -104,11 +131,17 @@ class Tester:
                 batch_size = inputs.shape[0]
                 if not self.__model.__class__.__name__ == "Network_Wrapper":                
                     outputs = self.__model(inputs)
-                    _, predicted = outputs.max(1)
+
+                    if isinstance(outputs, dict):
+                        predicted = torch.argmax(outputs['comb_outs'][0])               
+                    else:    
+                        _, predicted = outputs.max(dim=1)
+
                 else:
                     netp = torch.nn.DataParallel(self.__model, device_ids=[0])
                     _, _, _, outputs, _, _, _ = netp(inputs)
                     _, predicted = torch.max(outputs.data, 1)
+                
 
                 y_true[index:index + batch_size] = targets.cpu().numpy()
                 y_pred[index:index + batch_size] = predicted.cpu().numpy()

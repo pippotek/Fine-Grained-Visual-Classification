@@ -1,5 +1,5 @@
 import os
-os.chdir("/home/zazza/Documents/ML/Fine-Grained-Visual-Classification") # to import modules from other directories
+os.chdir("/home/peppe/01_Study/01_University/Semester/2/Intro_to_ML/Project/Code") # to import modules from other directories
 print("Warning: the working directory was changed to", os.getcwd())
 
 import torch
@@ -8,6 +8,9 @@ from tqdm import tqdm
 from sklearn.metrics import precision_score, recall_score
 import numpy as np
 from test import Tester
+
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'models_methods')))
 
 # Import the cmal_train function
 from models_methods.methods.CMAL.builder_resnet import cmal_train
@@ -21,13 +24,14 @@ class Trainer(Tester):
                  optimizer: torch.optim, 
                  loss_fn: torch.nn, 
                  device, 
-                 seed: int, 
+                 seed: int,
                  exp_name, # the name of this experiment
                  exp_path, # where you keep all the experiments
                  use_early_stopping=True,
                  patience=5,
                  delta=1e-3,
-                 scheduler=None):
+                 scheduler=None,
+                 num_classes = None):
         """
         The exp_name should be a string containing all the information about the experiment:
         - model 
@@ -43,6 +47,7 @@ class Trainer(Tester):
         self.__trained = False
         self.__scheduler = scheduler
         self.__best_loss = float("inf")
+        self.__num_classes = num_classes
 
         assert os.path.exists(exp_path), "Experiment path does not exist"
         assert os.path.exists(os.path.join(exp_path, exp_name)) == False, "The experiment already exists"
@@ -69,7 +74,7 @@ class Trainer(Tester):
                 assert self.__optimizer.__class__.__name__ == "SAM", "Use a torch scheduler if you are not using SAM"      
 
         if self.__use_early_stopping:
-            from utility.early_stopping import EarlyStopping
+            from models_methods.utility.early_stopping import EarlyStopping
             self.__early_stopping = EarlyStopping(patience=patience, 
                                                   delta=delta,
                                                   path=os.path.join(self.__exp_name,"checkpoint.pth"))      
@@ -108,8 +113,6 @@ class Trainer(Tester):
             log_interval = int(len(self._Tester__data_loaders["train_loader"])*log_interval)
 
         self._Tester__model.train()
-        if self.cmal:
-            netp = torch.nn.DataParallel(self._Tester__model, device_ids=[0])
 
         if self.__optimizer.__class__.__name__ == "SAM":
             from models_methods.utility.bypass_bn import enable_running_stats, disable_running_stats
@@ -125,14 +128,38 @@ class Trainer(Tester):
             # if inputs.shape[0] < batch_size:  # check that number of input samples is less than batch size
             # continue
 
-            if not self.model.__class.name == "Network_Wrapper":
+            if not self._Tester__model.__class__.__name__ == "Network_Wrapper":
                 # first forward-backward step
                 if self.__optimizer.__class__.__name__ == "SAM":        
                     enable_running_stats(self._Tester__model) # disable batch norm running stats
 
                 outputs = self._Tester__model(inputs)
 
-                loss = self._Tester__loss_fn(outputs, targets)
+                if isinstance(outputs, dict): # used for PIM
+
+                    loss = 0 # initialize loss
+
+                    for name in outputs:
+                    
+                        if "drop_" in name:
+                            S = outputs[name].size(1)
+                            logit = outputs[name].view(-1, self.__num_classes).contiguous()
+                            n_preds = torch.nn.Tanh()(logit)
+                            labels_0 = torch.zeros(n_preds.size()) - 1
+                            labels_0 = labels_0.to(self.__device)
+                            loss_n = torch.nn.MSELoss()(n_preds, labels_0)
+                            loss += 5 * loss_n
+
+                        elif "layer" in name:    
+                            loss_b = torch.nn.CrossEntropyLoss()(outputs[name].mean(1), targets)
+                            loss += 0.5* loss_b
+                        
+                        elif "comb_outs" in name:
+                            loss_c = torch.nn.CrossEntropyLoss()(outputs[name], targets)
+                            loss += 1 * loss_c
+                else:
+                    loss = self._Tester__loss_fn(outputs, targets)
+                
                 loss.backward()
                 
                 if self.__optimizer.__class__.__name__ == "SAM":
@@ -146,8 +173,12 @@ class Trainer(Tester):
                     self.__optimizer.step()
                     self.__optimizer.zero_grad()
 
-                cumulative_loss += loss.mean().item()
-                _, predicted = outputs.max(dim=1)
+                cumulative_loss += loss.item()
+                
+                if isinstance(outputs, dict):
+                    predicted = torch.argmax(outputs['comb_outs'][0])
+                else:
+                    _, predicted = outputs.max(dim=1)
                 cumulative_accuracy += predicted.eq(targets).sum().item()
 
             else:
@@ -158,7 +189,6 @@ class Trainer(Tester):
                 )
 
             samples += inputs.shape[0]
-            
 
             if verbose and batch_idx % log_interval == 0:
                 current_loss = cumulative_loss / samples
@@ -185,7 +215,7 @@ class Trainer(Tester):
              verbose_steps=True, # print after log_interval-learning steps
              log_interval=10): 
 
-        from utility.initialize import initialize
+        from models_methods.utility.initialize import initialize
         initialize(self.__seed)
             
         self._Tester__model.to(self._Tester__device)
@@ -276,7 +306,7 @@ class Trainer(Tester):
                 'batch_size':self._Tester__data_loaders["train_loader"].batch_size,
                 'dataset_name': dataset_name
             }, 
-            'model': self._Tester__model.__class__.__name__,
+            'model': self._Tester__model.__class__.__name__ if not self._Tester__model.__class__.__name__ == "Network_Wrapper" else "CMAL",
             'optimizer': {
                 'optimizer': self.__optimizer.__class__.__name__,
                 'momentum': self.__optimizer.param_groups[0]['momentum'],
