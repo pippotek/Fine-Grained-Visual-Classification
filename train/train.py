@@ -1,5 +1,5 @@
 import os
-os.chdir("/home/peppe/01_Study/01_University/Semester/2/Intro_to_ML/Project/Code") # to import modules from other directories
+os.chdir("/home/zazza/Documents/ML/Fine-Grained-Visual-Classification") # to import modules from other directories
 print("Warning: the working directory was changed to", os.getcwd())
 
 import torch
@@ -8,6 +8,12 @@ from tqdm import tqdm
 from sklearn.metrics import precision_score, recall_score
 import numpy as np
 from test import Tester
+
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'models_methods')))
+
+# Import the cmal_train function
+from methods.CMAL.builder_resnet import cmal_train
 
 class Trainer(Tester):
 
@@ -66,7 +72,7 @@ class Trainer(Tester):
                 assert self.__optimizer.__class__.__name__ == "SAM", "Use a torch scheduler if you are not using SAM"      
 
         if self.__use_early_stopping:
-            from models_methods.utility.early_stopping import EarlyStopping
+            from utility.early_stopping import EarlyStopping
             self.__early_stopping = EarlyStopping(patience=patience, 
                                                   delta=delta,
                                                   path=os.path.join(self.__exp_name,"checkpoint.pth"))      
@@ -105,6 +111,8 @@ class Trainer(Tester):
             log_interval = int(len(self._Tester__data_loaders["train_loader"])*log_interval)
 
         self._Tester__model.train()
+        if self.cmal:
+            netp = torch.nn.DataParallel(self._Tester__model, device_ids=[0])
 
         if self.__optimizer.__class__.__name__ == "SAM":
             from models_methods.utility.bypass_bn import enable_running_stats, disable_running_stats
@@ -117,31 +125,43 @@ class Trainer(Tester):
         for batch_idx, (inputs, targets) in enumerate(self._Tester__data_loaders["train_loader"]):
             inputs, targets = inputs.to(self._Tester__device), targets.to(self._Tester__device)
             
-            # first forward-backward step
-            if self.__optimizer.__class__.__name__ == "SAM":        
-                enable_running_stats(self._Tester__model) # disable batch norm running stats
+            # if inputs.shape[0] < batch_size:  # check that number of input samples is less than batch size
+            # continue
 
-            outputs = self._Tester__model(inputs)
+            if not self.model.__class.name == "Network_Wrapper":
+                # first forward-backward step
+                if self.__optimizer.__class__.__name__ == "SAM":        
+                    enable_running_stats(self._Tester__model) # disable batch norm running stats
 
-            loss = self._Tester__loss_fn(outputs, targets)
-            loss.backward()
-            
-            if self.__optimizer.__class__.__name__ == "SAM":
-                self.__optimizer.first_step(zero_grad=True)
-                # second forward-backward step
-                disable_running_stats(self._Tester__model)
-                loss = self._Tester__loss_fn(self._Tester__model(inputs), targets)
+                outputs = self._Tester__model(inputs)
+
+                loss = self._Tester__loss_fn(outputs, targets)
                 loss.backward()
-                self.__optimizer.second_step(zero_grad=True)
+                
+                if self.__optimizer.__class__.__name__ == "SAM":
+                    self.__optimizer.first_step(zero_grad=True)
+                    # second forward-backward step
+                    disable_running_stats(self._Tester__model)
+                    loss = self._Tester__loss_fn(self._Tester__model(inputs), targets)
+                    loss.backward()
+                    self.__optimizer.second_step(zero_grad=True)
+                else:
+                    self.__optimizer.step()
+                    self.__optimizer.zero_grad()
+
+                cumulative_loss += loss.mean().item()
+                _, predicted = outputs.max(dim=1)
+                cumulative_accuracy += predicted.eq(targets).sum().item()
+
             else:
-                self.__optimizer.step()
-                self.__optimizer.zero_grad()
+                cumulative_loss, cumulative_accuracy, predicted = cmal_train(
+                    inputs=inputs, targets=targets, net=self._Tester__model,
+                    optimizer=self.__optimizer, loss=self._Tester__loss_fn,
+                    scheduler=self.__scheduler
+                )
 
             samples += inputs.shape[0]
-            cumulative_loss += loss.mean().item()
-            _, predicted = outputs.max(dim=1)
-
-            cumulative_accuracy += predicted.eq(targets).sum().item()
+            
 
             if verbose and batch_idx % log_interval == 0:
                 current_loss = cumulative_loss / samples
@@ -168,7 +188,7 @@ class Trainer(Tester):
              verbose_steps=True, # print after log_interval-learning steps
              log_interval=10): 
 
-        from models_methods.utility.initialize import initialize
+        from utility.initialize import initialize
         initialize(self.__seed)
             
         self._Tester__model.to(self._Tester__device)

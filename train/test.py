@@ -43,7 +43,10 @@ class Tester:
                 inputs = inputs.to(self.__device)
                 targets = targets.to(self.__device)
 
-                outputs = self.__model(inputs)
+                if not self.model.__class.name == "Network_Wrapper":
+                    outputs = self.__model(inputs)
+                else:
+                    _, _, _, outputs, _, _, _ = self.__model(inputs)
 
                 loss = self.__loss_fn(outputs, targets)
 
