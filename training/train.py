@@ -1,5 +1,5 @@
 import os
-os.chdir("/home/peppe/01_Study/01_University/Semester/2/Intro_to_ML/Project/Code") # to import modules from other directories
+os.chdir("/home/filippo/Desktop/Uni/ML/Fine-Grained-Visual-Classification") # to import modules from other directories
 print("Warning: the working directory was changed to", os.getcwd())
 
 import torch
@@ -7,7 +7,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from sklearn.metrics import precision_score, recall_score
 import numpy as np
-from test import Tester
+from training.test import Tester
 
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'models_methods')))
