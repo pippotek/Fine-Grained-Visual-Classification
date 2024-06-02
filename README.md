@@ -48,7 +48,7 @@ The `methods` directory includes optimization methods and additional FGCV blocks
 
 <br> 
 
-- **PIM**: (brief description, paper, images)
+- **PIM (Plug-In Module)**: 
   <p align="center">
   <img src="images/PIM.png" width="512"/>  
 </p>
