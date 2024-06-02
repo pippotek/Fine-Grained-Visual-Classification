@@ -1,7 +1,5 @@
 import torch
-from sklearn.metrics import precision_score, recall_score, confusion_matrix
-import seaborn as sns
-import matplotlib.pyplot as plt
+from sklearn.metrics import precision_score, recall_score
 import numpy as np
 
 class Tester:

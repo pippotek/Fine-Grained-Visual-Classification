@@ -1,5 +1,5 @@
 import os
-os.chdir("/home/filippo/Desktop/Uni/ML/Fine-Grained-Visual-Classification") # to import modules from other directories
+os.chdir("/home/peppe/01_Study/01_University/Semester/2/Intro_to_ML/Project/Code") # to import modules from other directories
 print("Warning: the working directory was changed to", os.getcwd())
 
 import torch
@@ -7,13 +7,13 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from sklearn.metrics import precision_score, recall_score
 import numpy as np
-from training.test import Tester
+from train.test import Tester
 
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'models_methods')))
 
 # Import the cmal_train function
-from models_methods.methods.CMAL.builder_resnet import cmal_train
+from methods.CMAL.builder_resnet import cmal_train
 
 class Trainer(Tester):
 
@@ -74,7 +74,7 @@ class Trainer(Tester):
                 assert self.__optimizer.__class__.__name__ == "SAM", "Use a torch scheduler if you are not using SAM"      
 
         if self.__use_early_stopping:
-            from models_methods.utility.early_stopping import EarlyStopping
+            from utility.early_stopping import EarlyStopping
             self.__early_stopping = EarlyStopping(patience=patience, 
                                                   delta=delta,
                                                   path=os.path.join(self.__exp_name,"checkpoint.pth"))      
@@ -115,7 +115,7 @@ class Trainer(Tester):
         self._Tester__model.train()
 
         if self.__optimizer.__class__.__name__ == "SAM":
-            from models_methods.utility.bypass_bn import enable_running_stats, disable_running_stats
+            from utility.bypass_bn import enable_running_stats, disable_running_stats
 
         num_samples = len(self._Tester__data_loaders["train_loader"].dataset)
         y_true = np.zeros(num_samples, dtype=int)
@@ -215,7 +215,7 @@ class Trainer(Tester):
              verbose_steps=True, # print after log_interval-learning steps
              log_interval=10): 
 
-        from models_methods.utility.initialize import initialize
+        from utility.initialize import initialize
         initialize(self.__seed)
             
         self._Tester__model.to(self._Tester__device)
