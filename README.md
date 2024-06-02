@@ -1,7 +1,7 @@
 # Computer Vision Competition: Fine-Grained Classification 
 
 ## Fine-Grained Classification in Computer Vision
-
+Among the realm of computer vision Fine Grained Visual Classification is a challenging task which involves distinguishing between similar sub-categories belonging to the same Macro-category (e.g. birds, aircrafts, food or flowers).
 ...
 
 ## Repository Overview
