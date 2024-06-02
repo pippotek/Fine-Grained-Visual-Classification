@@ -49,6 +49,10 @@ The `methods` directory includes optimization methods and additional FGCV blocks
 <br> 
 
 - **PIM**: (brief description, paper, images)
+  <p align="center">
+  <img src="images/PIM.png" width="512"/>  
+</p>
+
 
 - **CMAL**: (brief description, paper, images)
   
