@@ -41,7 +41,7 @@ The `methods` directory includes optimization methods and additional FGCV blocks
 <br>
 
 <p align="center">
-  <img src="Images/Resnet_SAM_loss_landscape.png" width="512"/>  
+  <img src="images/Resnet_SAM_loss_landscape.png" width="512"/>  
 </p>
 
 <p align="center">
