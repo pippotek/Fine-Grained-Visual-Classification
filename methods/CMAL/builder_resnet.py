@@ -2,35 +2,57 @@ from __future__ import print_function
 import torch
 import torch.nn as nn
 
-from methods.CMAL.highlight_images import *
-from methods.CMAL.map_generate import *
-from methods.CMAL.basic_conv import BasicConv
+from models_methods.methods.CMAL.highlight_images import *
+from models_methods.methods.CMAL.map_generate import *
+from models_methods.methods.CMAL.basic_conv import BasicConv
 
 # Extract features from an input tensor taking first 8 layers of the model 
 # and separates them into sequential models, forward applies layers to input tensors
 # returns output tensors of 5th to 7th layers
 class Features(nn.Module):
     def __init__(self, net_layers):
-        super(Features, self).__init__()
-        self.net_layer_0 = nn.Sequential(net_layers[0])
-        self.net_layer_1 = nn.Sequential(net_layers[1])
-        self.net_layer_2 = nn.Sequential(net_layers[2])
-        self.net_layer_3 = nn.Sequential(net_layers[3])
-        self.net_layer_4 = nn.Sequential(*net_layers[4])
-        self.net_layer_5 = nn.Sequential(*net_layers[5])
-        self.net_layer_6 = nn.Sequential(*net_layers[6])
-        self.net_layer_7 = nn.Sequential(*net_layers[7])
 
+        super(Features, self).__init__()
+        self.net_layers = net_layers
+
+        if isinstance(net_layers[0],nn.Conv2d):
+            self.net_layer_0 = nn.Sequential(net_layers[0])
+            self.net_layer_1 = nn.Sequential(net_layers[1])
+            self.net_layer_2 = nn.Sequential(net_layers[2])
+            self.net_layer_3 = nn.Sequential(net_layers[3])
+            self.net_layer_4 = nn.Sequential(*net_layers[4])
+            self.net_layer_5 = nn.Sequential(*net_layers[5])
+            self.net_layer_6 = nn.Sequential(*net_layers[6])
+            self.net_layer_7 = nn.Sequential(*net_layers[7])
+
+        elif isinstance(net_layers[0],nn.Sequential):  # EfficientNet
+            self.net_layer_0 = nn.Sequential(net_layers[0], net_layers[1])  # Stem conv and batch norm
+            self.net_layer_1 = nn.Sequential(*net_layers[2][0:6])           # MBConv blocks 0-5 (stage 1-2)
+            self.net_layer_2 = nn.Sequential(*net_layers[2][6:12])          # MBConv blocks 6-11 (stage 3-4)
+            self.net_layer_3 = nn.Sequential(*net_layers[2][12:22])         # MBConv blocks 12-21 (stage 5-6)
+            self.net_layer_4 = nn.Sequential(*net_layers[2][22:30])         # MBConv blocks 22-29 (stage 7)
+            self.net_layer_5 = nn.Sequential(*net_layers[2][30:38])         # MBConv blocks 30-37 (stage 8)
+        else:
+            raise ValueError("Unsupported model type")
 
     def forward(self, x):
-        x = self.net_layer_0(x)
-        x = self.net_layer_1(x)
-        x = self.net_layer_2(x)
-        x = self.net_layer_3(x)
-        x = self.net_layer_4(x)
-        x1 = self.net_layer_5(x)
-        x2 = self.net_layer_6(x1)
-        x3 = self.net_layer_7(x2)
+        if isinstance(self.net_layers[0],nn.Conv2d):
+            x = self.net_layer_0(x)
+            x = self.net_layer_1(x)
+            x = self.net_layer_2(x)
+            x = self.net_layer_3(x)
+            x = self.net_layer_4(x)
+            x1 = self.net_layer_5(x)
+            x2 = self.net_layer_6(x1)
+            x3 = self.net_layer_7(x2)
+        elif isinstance(self.net_layers[0],nn.Sequential):
+            x = self.net_layer_0(x)  # Basic features
+            x = self.net_layer_1(x)  # Early features
+            x = self.net_layer_2(x)  # Mid-level features
+            x1 = self.net_layer_3(x)  # Mid-high level features
+            x2 = self.net_layer_4(x1) # Higher-level features (output 1)
+            x3 = self.net_layer_5(x2) # More abstract features (output 2)
+        
         # return as output the feature maps of the 5th, 6th and 7th layers
         return x1, x2, x3
 
@@ -41,9 +63,9 @@ class Network_Wrapper(nn.Module):
         self.Features = Features(net_layers)
 
         # reducing spatial dimension of the feature maps
-        self.max_pool1 = nn.MaxPool2d(kernel_size=56, stride=1)
-        self.max_pool2 = nn.MaxPool2d(kernel_size=28, stride=1)
-        self.max_pool3 = nn.MaxPool2d(kernel_size=14, stride=1)
+        self.max_pool1 = nn.MaxPool2d(kernel_size=28, stride=1)
+        self.max_pool2 = nn.MaxPool2d(kernel_size=14, stride=1)
+        self.max_pool3 = nn.MaxPool2d(kernel_size=7, stride=1)
 
         self.conv_block1 = nn.Sequential(
             BasicConv(512, 512, kernel_size=1, stride=1, padding=0, relu=True),
@@ -198,9 +220,9 @@ def cmal_train(inputs, targets, net, loss, optimizer, scheduler, train_loss=0, t
     concat_loss.backward()
     optimizer.step()
 
-    # Da modificare
-    for nlr in range(len(optimizer.param_groups)):
-        optimizer.param_groups[nlr]['lr'] = scheduler.get_lr()[nlr]
+    if scheduler is not None:
+        for nlr in range(len(optimizer.param_groups)):
+            optimizer.param_groups[nlr]['lr'] = scheduler.get_lr()[nlr]
 
     # the maximum value in the tensor is the predicted label for input data
     _, predicted = torch.max(output_concat.data, 1)
