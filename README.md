@@ -48,8 +48,9 @@ The `methods` directory includes optimization methods and additional FGCV blocks
 
 <br> 
 
-- **PIM (Plug-In Module)**: Implementation of the module proposed by Chou et al. in the paper ["A Novel Plug-in Module for Fine-Grained Visual Classification"](https://arxiv.org/abs/2202.03822)
-  <p align="center">
+- **PIM (Plug-In Module)**: Implementation of the module proposed by ["Chou"](https://github.com/chou141253) et al. in the paper ["A Novel Plug-in Module for Fine-Grained Visual Classification"](https://arxiv.org/abs/2202.03822). This module integrates into the most common backbones to improve the performance in fine grained image classification
+
+<p align="center">
   <img src="images/PIM.png" width="512"/>  
 </p>
 
