@@ -70,11 +70,11 @@ The `utility` directory comprises various utility scripts and the implementation
 <br>
 
 <p align="center">
-  <img src="images/gradcam_aircraft/class_0/02_resnet50_sam.png.png" width="512"/>  
+  <img src="images/gradcam_aircraft/class_0/02_resnet50_sam.png" width="448"/>  
 </p>
 
 <p align="center">
-  <sub><em>A gracam image produced using the FGVCAircraft dataset and a Resnet50 trained using SAM. The red pixels represent the aircraft's parts the mainly driven the model's prediction.</em></sub>
+  <sub><em>A gradcam image produced using the FGVCAircraft dataset and a Resnet50 trained using SAM. The red pixels represent the aircraft's parts that mainly drive the model's prediction.</em></sub>
 </p>
 
 <br> 
