@@ -79,4 +79,7 @@ The `utility` directory comprises various utility scripts and the implementation
 </p>
 
 <br> 
+### Datasets
+We utilized 3 different datasets to train and test our models:
+- **Flowers102** 
 
