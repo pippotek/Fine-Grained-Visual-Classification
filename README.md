@@ -79,7 +79,10 @@ The `utility` directory comprises various utility scripts and the implementation
 </p>
 
 <br> 
-### Datasets
-We utilized 3 different datasets to train and test our models:
-- **Flowers102** 
 
+### Datasets
+To train and test our models we utilized 3 different fine-grained datasets:
+
+-**Flowers102**: Dataset of 102 different species of flowers commonly occurring in the UK, each with between 40 and 258 occurrences, for a total of about 8200 images
+
+-**FGVCAircraft**:
