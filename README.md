@@ -83,6 +83,24 @@ The `utility` directory comprises various utility scripts and the implementation
 ### Datasets
 To train and test our models we utilized 3 different fine-grained datasets:
 
--**Flowers102**: Dataset of 102 different species of flowers commonly occurring in the UK, each with between 40 and 258 occurrences, for a total of about 8200 images
+-**Flowers102:** A dataset containing 102 flower categories, with each class consisting of 40 to 258 images, for a total of about 8200. These flowers are commonly found in the United Kingdom, and the dataset features significant variations in scale, pose, and lighting conditions.
 
--**FGVCAircraft**:
+<p align="center">
+  <img src="images/flowers.png" width="448"/>  
+</p>
+
+<p align="center">
+
+-**FGVCAircraft:** A comprehensive collection of 100 classes of different aircraft, hierachically organized by variant, family and manufacturer. Each class has 100 images, for a total of 10k images, split equally among training, validation and test
+
+<p align="center">
+  <img src="images/aircrafts.png" width="448"/>  
+</p>
+
+<p align="center">
+-**Mammalia:** The dataset used in our course's final competition, it consists of 100 different classes of mammals, each labeled with its latin name, with 50 images in the training set and 10 in the test
+
+<p align="center">
+  <img src="images/mammalia.png" width="448"/>  
+</p>
+
