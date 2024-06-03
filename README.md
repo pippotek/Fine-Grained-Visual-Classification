@@ -48,7 +48,7 @@ The `methods` directory includes optimization methods and additional FGCV blocks
 
 <br> 
 
-- **PIM (Plug-In Module)**: Implementation of the module proposed by [Chou](https://github.com/chou141253) et al. in the paper ["A Novel Plug-in Module for Fine-Grained Visual Classification"](https://arxiv.org/abs/2202.03822). This module integrates into the most common backbones to improve the performance in fine grained image classification
+- **PIM (Plug-In Module)**: Implementation of the module proposed by [Chou](https://github.com/chou141253) et al. in the paper ["A Novel Plug-in Module for Fine-Grained Visual Classification"](https://arxiv.org/abs/2202.03822). This module integrates into the most common backbones to improve the performance in fine grained image classification by allowing the model to concentrate on the object regions instead of the background.
 
 <p align="center">
   <img src="images/PIM.png" width="512"/>  
@@ -91,7 +91,7 @@ To train and test our models we utilized 3 different fine-grained datasets:
 
 <p align="center">
     
-- **FGVCAircraft:** A comprehensive collection of 100 classes of different aircraft, hierachically organized by variant, family and manufacturer. Each class has 100 images, for a total of 10k images, split equally among training, validation and test
+- **FGVCAircraft:** A comprehensive collection of 100 classes of different aircraft, hierachically organized by variant, family and manufacturer. Each class has 100 images, for a total of 10k images, split equally among training, validation and test.
 
 <p align="center">
   <img src="images/aircrafts.png" width="448"/>  
@@ -99,7 +99,7 @@ To train and test our models we utilized 3 different fine-grained datasets:
 
 <p align="center">
     
-- **Mammalia:** The dataset used in our course's final competition, it consists of 100 different classes of mammals, each labeled with its latin name, with 50 images in the training set and 10 in the test
+- **Mammalia:** The dataset used in our course's final competition, it consists of 100 different classes of mammals, each labeled with its latin name, with 50 images in the training set and 10 in the test.
 
 <p align="center">
   <img src="images/mammalia.png" width="448"/>  
