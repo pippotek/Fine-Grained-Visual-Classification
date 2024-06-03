@@ -66,3 +66,16 @@ The `train` folder contains essential scripts for training and testing:
 ### Utility
 
 The `utility` directory comprises various utility scripts and the implementation of Grad-CAM. Grad-CAM (Gradient-weighted Class Activation Mapping) is a technique to visualize and understand the decisions made by a Convolutional Neural Network (CNN) by highlighting the regions of the input image that are important for predictions. The Grad-CAM code is adapted from the official repository available [here](https://github.com/jacobgil/pytorch-grad-cam).
+
+<br>
+
+<p align="center">
+  <img src="images/gradcam_aircraft/class_0/02_resnet50_sam.png.png" width="512"/>  
+</p>
+
+<p align="center">
+  <sub><em>A gracam image produced using the FGVCAircraft dataset and a Resnet50 trained using SAM. The red pixels represent the aircraft's parts the mainly driven the model's prediction.</em></sub>
+</p>
+
+<br> 
+
