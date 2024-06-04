@@ -1,5 +1,5 @@
 import os
-os.chdir("/home/peppe/01_Study/01_University/Semester/2/Intro_to_ML/Project/Code") # to import modules from other directories
+os.chdir("/home/zazza/Documents/ML/Fine-Grained-Visual-Classification") # to import modules from other directories
 print("Warning: the working directory was changed to", os.getcwd())
 
 import torch
@@ -182,11 +182,12 @@ class Trainer(Tester):
                 cumulative_accuracy += predicted.eq(targets).sum().item()
 
             else:
-                cumulative_loss, cumulative_accuracy, predicted = cmal_train(
+                cumulative_loss, batch_accuracy, predicted = cmal_train(
                     inputs=inputs, targets=targets, net=self._Tester__model,
                     optimizer=self.__optimizer, loss=self._Tester__loss_fn,
                     scheduler=self.__scheduler
                 )
+                cumulative_accuracy += batch_accuracy
 
             samples += inputs.shape[0]
 

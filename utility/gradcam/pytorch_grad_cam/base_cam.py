@@ -126,7 +126,7 @@ class BaseCAM:
         activations_list = [a.cpu().data.numpy() for a in self.activations_and_grads.activations]
         grads_list = [g.cpu().data.numpy() for g in self.activations_and_grads.gradients]
         target_size = self.get_target_width_height(input_tensor)
-
+        
         cam_per_target_layer = []
         # Loop over the saliency image from every layer
         for i in range(len(self.target_layers)):
@@ -137,7 +137,7 @@ class BaseCAM:
                 layer_activations = activations_list[i]
             if i < len(grads_list):
                 layer_grads = grads_list[i]
-
+                
             cam = self.get_cam_image(input_tensor, target_layer, targets, layer_activations, layer_grads, eigen_smooth)
             cam = np.maximum(cam, 0)
             scaled = scale_cam_image(cam, target_size)

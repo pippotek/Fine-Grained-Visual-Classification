@@ -15,6 +15,7 @@ class ActivationsAndGradients:
             # we don't use backward hook to record gradients.
             self.handles.append(
                 target_layer.register_forward_hook(self.save_gradient))
+            print(type(target_layer))
 
     def save_activation(self, module, input, output):
         activation = output
@@ -27,13 +28,13 @@ class ActivationsAndGradients:
         if not hasattr(output, "requires_grad") or not output.requires_grad:
             # You can only register hooks on tensor requires grad.
             return
-
+        
         # Gradients are computed in reverse order
         def _store_grad(grad):
             if self.reshape_transform is not None:
                 grad = self.reshape_transform(grad)
             self.gradients = [grad.cpu().detach()] + self.gradients
-
+        
         output.register_hook(_store_grad)
 
     def __call__(self, x):

@@ -55,8 +55,14 @@ The `methods` directory includes optimization methods and additional FGCV blocks
 </p>
 
 
-- **CMAL**: (brief description, paper, images)
-  
+- **CMAL-Net (Cross-layer Mutual Attention Learning Network)**: Implementation of the network from the paper ["Learn from each other to Classify better: Cross-layer mutual attention
+learning for fine-grained visual classification"](https://www.sciencedirect.com/science/article/pii/S0031320323002509?via%3Dihub) by [Dichao Liu](https://github.com/Dichao-Liu) et al. It builds upon existing
+pre-trained image classification models like ResNet50, enabling different layers of the network to guide each other's learning through a mutual attention attention process. This allows the model to focus on the most relevant parts of the input image.
+
+<p align="center">
+  <img src="images/CMAL.png" width="512"/>  
+</p>
+
 ### Training
 
 The `train` folder contains essential scripts for training and testing:
