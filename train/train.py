@@ -145,7 +145,7 @@ class Trainer(Tester):
                             logit = outputs[name].view(-1, self._Tester__num_classes).contiguous()
                             n_preds = torch.nn.Tanh()(logit)
                             labels_0 = torch.zeros(n_preds.size()) - 1
-                            labels_0 = labels_0.to(self.__device)
+                            labels_0 = labels_0.to(self._Tester__device)
                             loss_n = torch.nn.MSELoss()(n_preds, labels_0)
                             loss += 5 * loss_n
 
