@@ -3,7 +3,7 @@ from torchvision import transforms
 from methods.CMAL.basic_conv import *
 from torch.autograd import Variable
 import os 
-os.chdir("/home/zazza/Documents/ML/Fine-Grained-Visual-Classification/utility/gradcam")
+os.chdir("/home/filippo/Desktop/Uni/ML/Fine-Grained-Visual-Classification/utility/gradcam")
 from methods.CMAL.map_generate import map_generate
 import torchvision
 

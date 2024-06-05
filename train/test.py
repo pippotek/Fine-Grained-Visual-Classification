@@ -3,11 +3,12 @@ from sklearn.metrics import precision_score, recall_score
 import numpy as np
 
 class Tester:
-    def __init__(self, model, dataloaders, device, loss_fn):
+    def __init__(self, model, dataloaders, device, loss_fn, num_classes):
         self.__model = model
         self.__data_loaders = dataloaders
         self.__device = device
         self.__loss_fn = loss_fn
+        self.__num_classes = num_classes
 
     def test_step(self, test=False, eval=False, train=False, precision=False, recall=False):
         

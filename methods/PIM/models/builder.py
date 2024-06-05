@@ -69,7 +69,8 @@ def build_resnet50(pretrained: str = "https://miil-public-eu.oss-eu-central-1.al
                    num_classes: int = 200,
                    use_combiner: bool = True,
                    comb_proj_size: Union[int, None] = None):
-    
+    import os 
+    os.chdir('/home/filippo/Desktop/Uni/ML/Fine-Grained-Visual-Classification/methods/PIM')
     import timm
     
     if return_nodes is None:
@@ -174,7 +175,8 @@ def build_vit16(pretrained: str = "https://miil-public-eu.oss-eu-central-1.aliyu
                 num_classes: int = 200,
                 use_combiner: bool = True,
                 comb_proj_size: Union[int, None] = None):
-
+    import os 
+    os.chdir('/home/filippo/Desktop/Uni/ML/Fine-Grained-Visual-Classification/methods/PIM')
     import timm
     
     backbone = timm.create_model('vit_base_patch16_224_miil_in21k', pretrained=False)
@@ -253,7 +255,7 @@ def build_swintransformer(pretrained: bool = True,
     model also fail at create_feature_extractor or get_graph_node_names step.
     """
     import os
-    os.chdir("/home/disi/Fine-Grained-Visual-Classification/models_methods/methods/PIM")
+    os.chdir("/home/filippo/Desktop/Uni/ML/Fine-Grained-Visual-Classification/methods/PIM")
     import timm
 
     if num_selects is None:

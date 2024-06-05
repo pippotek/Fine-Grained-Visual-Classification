@@ -1,5 +1,5 @@
 import os
-os.chdir("/home/zazza/Documents/ML/Fine-Grained-Visual-Classification") # to import modules from other directories
+os.chdir("/home/filippo/Desktop/Uni/ML/Fine-Grained-Visual-Classification") # to import modules from other directories
 print("Warning: the working directory was changed to", os.getcwd())
 
 import torch
@@ -39,7 +39,7 @@ class Trainer(Tester):
         - loss function
         - other hyperparameters 
         """
-        super().__init__(model, data_loaders, device, loss_fn)
+        super().__init__(model, data_loaders, device, loss_fn, num_classes)
         self.__optimizer = optimizer        
         self.__use_early_stopping = use_early_stopping
         self.__seed = seed
@@ -47,7 +47,6 @@ class Trainer(Tester):
         self.__trained = False
         self.__scheduler = scheduler
         self.__best_loss = float("inf")
-        self.__num_classes = num_classes
 
         assert os.path.exists(exp_path), "Experiment path does not exist"
         assert os.path.exists(os.path.join(exp_path, exp_name)) == False, "The experiment already exists"
@@ -143,7 +142,7 @@ class Trainer(Tester):
                     
                         if "drop_" in name:
                             S = outputs[name].size(1)
-                            logit = outputs[name].view(-1, self.__num_classes).contiguous()
+                            logit = outputs[name].view(-1, self._Tester__num_classes).contiguous()
                             n_preds = torch.nn.Tanh()(logit)
                             labels_0 = torch.zeros(n_preds.size()) - 1
                             labels_0 = labels_0.to(self.__device)
