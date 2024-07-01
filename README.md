@@ -111,3 +111,7 @@ To train and test our models we utilized 3 different fine-grained datasets:
   <img src="images/mammalia.png" width="448"/>  
 </p>
 
+## Authors
+- Giuseppe Curci
+- Filippo Costamagna
+- Damiano Zaccaron
